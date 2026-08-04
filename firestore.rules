@@ -1,0 +1,246 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Enterprise Users collection
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Activity & Audit Logs collection
+    match /activity_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // ERP Operational Collections
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+
+    match /ingredients/{ingredientId} {
+      allow read, write: if true;
+    }
+
+    match /expenses/{expenseId} {
+      allow read, write: if true;
+    }
+
+    match /purchases/{purchaseId} {
+      allow read, write: if true;
+    }
+
+    match /employees/{employeeId} {
+      allow read, write: if true;
+    }
+
+    match /salaries/{salaryId} {
+      allow read, write: if true;
+    }
+
+    match /suppliers/{supplierId} {
+      allow read, write: if true;
+    }
+
+    match /inventory_movements/{movementId} {
+      allow read, write: if true;
+    }
+
+    match /refunds/{refundId} {
+      allow read, write: if true;
+    }
+
+    match /bank_transactions/{transactionId} {
+      allow read, write: if true;
+    }
+
+    match /accounts/{accountId} {
+      allow read, write: if true;
+    }
+
+    match /delivery_drivers/{driverId} {
+      allow read, write: if true;
+    }
+
+    match /kitchen_stations/{stationId} {
+      allow read, write: if true;
+    }
+
+    match /employee_attendance/{attendanceId} {
+      allow read, write: if true;
+    }
+
+    match /reservations/{reservationId} {
+      allow read, write: if true;
+    }
+
+    match /customer_feedbacks/{feedbackId} {
+      allow read, write: if true;
+    }
+
+    match /equipment_items/{equipmentId} {
+      allow read, write: if true;
+    }
+
+    match /customer_wallets/{walletId} {
+      allow read, write: if true;
+    }
+
+    match /wallet_transactions/{txId} {
+      allow read, write: if true;
+    }
+
+    match /customer_points/{pointsId} {
+      allow read, write: if true;
+    }
+
+    match /customer_rewards/{rewardId} {
+      allow read, write: if true;
+    }
+
+    match /customer_coupons/{couponId} {
+      allow read, write: if true;
+    }
+
+    match /customer_notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    // Phase 9 HRM Collections
+    match /attendance/{attendanceId} {
+      allow read, write: if true;
+    }
+
+    match /shifts/{shiftId} {
+      allow read, write: if true;
+    }
+
+    match /payroll/{payrollId} {
+      allow read, write: if true;
+    }
+
+    match /leave_requests/{leaveId} {
+      allow read, write: if true;
+    }
+
+    match /employee_documents/{docId} {
+      allow read, write: if true;
+    }
+
+    match /performance/{perfId} {
+      allow read, write: if true;
+    }
+
+    match /employee_notifications/{notifId} {
+      allow read, write: if true;
+    }
+
+    // Phase 10 Accounting & ERP Collections
+    match /journal_entries/{entryId} {
+      allow read, write: if true;
+    }
+
+    match /journal_lines/{lineId} {
+      allow read, write: if true;
+    }
+
+    match /ledger/{ledgerId} {
+      allow read, write: if true;
+    }
+
+    match /revenues/{revenueId} {
+      allow read, write: if true;
+    }
+
+    match /cash_registers/{registerId} {
+      allow read, write: if true;
+    }
+
+    match /bank_accounts/{bankId} {
+      allow read, write: if true;
+    }
+
+    match /receivables/{receivableId} {
+      allow read, write: if true;
+    }
+
+    match /payables/{payableId} {
+      allow read, write: if true;
+    }
+
+    match /taxes/{taxId} {
+      allow read, write: if true;
+    }
+
+    match /financial_reports/{reportId} {
+      allow read, write: if true;
+    }
+
+    // Phase 13 Multi-Branch Collections
+    match /branches/{branchId} {
+      allow read, write: if true;
+    }
+
+    match /branch_settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    match /branch_transfers/{transferId} {
+      allow read, write: if true;
+    }
+
+    match /branch_inventory/{invId} {
+      allow read, write: if true;
+    }
+
+    match /branch_reports/{reportId} {
+      allow read, write: if true;
+    }
+
+    match /employee_transfers/{transferId} {
+      allow read, write: if true;
+    }
+
+    match /cash_transfers/{transferId} {
+      allow read, write: if true;
+    }
+
+    // Phase 14 Delivery Management & Logistics Collections
+    match /drivers/{driverId} {
+      allow read, write: if true;
+    }
+
+    match /deliveries/{deliveryId} {
+      allow read, write: if true;
+    }
+
+    match /delivery_tracking/{trackId} {
+      allow read, write: if true;
+    }
+
+    match /delivery_zones/{zoneId} {
+      allow read, write: if true;
+    }
+
+    match /delivery_reports/{reportId} {
+      allow read, write: if true;
+    }
+
+    match /delivery_notifications/{notifId} {
+      allow read, write: if true;
+    }
+
+    // Default fallback rule
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
