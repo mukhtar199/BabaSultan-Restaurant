@@ -1,7 +1,28 @@
-import React from 'react';
-import { Order, Product, Ingredient, Expense, Employee, Supplier, Purchase } from '../types';
-import { downloadPDFReport, exportToExcel } from '../lib/reports';
-import { FileSpreadsheet, FileText, Download, Printer, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { db, COLLECTIONS } from '../../lib/firebase';
+import { Order, Product, Ingredient, Expense, Employee, Supplier, Purchase, Customer } from '../../types';
+import { FilterBar, ReportFilters } from './reports/FilterBar';
+import { BIAnalyticsDashboard } from './reports/BIAnalyticsDashboard';
+import { SpecializedReportModule, ReportType } from './reports/SpecializedReportModule';
+import {
+  BarChart3,
+  FileSpreadsheet,
+  Printer,
+  Download,
+  Building2,
+  TrendingUp,
+  DollarSign,
+  PieChart,
+  Users,
+  Package,
+  UserCheck,
+  Truck,
+  Utensils,
+  CreditCard,
+  FileText,
+} from 'lucide-react';
+import { downloadPDFReport, exportToExcel, printReportWindow } from '../../lib/reports';
 
 interface ReportsViewProps {
   orders: Order[];
@@ -14,187 +35,426 @@ interface ReportsViewProps {
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
-  orders,
-  products,
-  ingredients,
-  expenses,
-  employees,
-  suppliers,
-  purchases
+  orders: initialOrders,
+  products: initialProducts,
+  ingredients: initialIngredients,
+  expenses: initialExpenses,
+  employees: initialEmployees,
+  suppliers: initialSuppliers,
+  purchases: initialPurchases,
 }) => {
+  // 1. Real-Time Firestore Sync & Local Fallback State
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [ingredients, setIngredients] = useState<Ingredient[]>(initialIngredients);
+  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
+  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
+  const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases);
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
-  const handleDownloadFinancialPDF = () => {
-    const totalRev = orders.reduce((a, b) => a + b.totalAmount, 0);
-    const totalCogs = orders.reduce((a, b) => a + b.cogs, 0);
-    const totalExp = expenses.reduce((a, b) => a + b.amount, 0);
-    const netProfit = totalRev - totalCogs - totalExp;
-
-    downloadPDFReport(
-      "Comprehensive Restaurant Financial Audit",
-      `Period: Current Session | Firestore Database Audit`,
-      [
-        {
-          heading: "Financial Statement",
-          columns: ["Account Line Item", "Amount ($USD)"],
-          rows: [
-            ["Gross Sales Revenue", `$${totalRev.toFixed(2)}`],
-            ["Cost of Goods Sold (COGS)", `$${totalCogs.toFixed(2)}`],
-            ["Operating Expenses", `$${totalExp.toFixed(2)}`],
-            ["Net Income / Profit", `$${netProfit.toFixed(2)}`]
-          ]
-        },
-        {
-          heading: "Expense Breakdown",
-          columns: ["Title", "Category", "Amount ($)", "Date"],
-          rows: expenses.map(e => [e.title, e.category, `$${e.amount.toFixed(2)}`, new Date(e.createdAt).toLocaleDateString()])
-        }
-      ]
+  // Subscribe to real-time collections if available
+  useEffect(() => {
+    const unsubOrders = onSnapshot(
+      query(collection(db, COLLECTIONS.ORDERS)),
+      (snap) => {
+        const list: Order[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Order));
+        if (list.length > 0) setOrders(list);
+      },
+      (err) => console.warn('ReportsView orders sync warning:', err)
     );
+
+    const unsubProducts = onSnapshot(
+      query(collection(db, COLLECTIONS.PRODUCTS)),
+      (snap) => {
+        const list: Product[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Product));
+        if (list.length > 0) setProducts(list);
+      },
+      (err) => console.warn('ReportsView products sync warning:', err)
+    );
+
+    const unsubIngredients = onSnapshot(
+      query(collection(db, COLLECTIONS.INGREDIENTS)),
+      (snap) => {
+        const list: Ingredient[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Ingredient));
+        if (list.length > 0) setIngredients(list);
+      },
+      (err) => console.warn('ReportsView ingredients sync warning:', err)
+    );
+
+    const unsubExpenses = onSnapshot(
+      query(collection(db, COLLECTIONS.EXPENSES)),
+      (snap) => {
+        const list: Expense[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Expense));
+        if (list.length > 0) setExpenses(list);
+      },
+      (err) => console.warn('ReportsView expenses sync warning:', err)
+    );
+
+    const unsubEmployees = onSnapshot(
+      query(collection(db, COLLECTIONS.EMPLOYEES)),
+      (snap) => {
+        const list: Employee[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Employee));
+        if (list.length > 0) setEmployees(list);
+      },
+      (err) => console.warn('ReportsView employees sync warning:', err)
+    );
+
+    const unsubCustomers = onSnapshot(
+      query(collection(db, COLLECTIONS.CUSTOMERS)),
+      (snap) => {
+        const list: Customer[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Customer));
+        setCustomers(list);
+      },
+      (err) => console.warn('ReportsView customers sync warning:', err)
+    );
+
+    return () => {
+      unsubOrders();
+      unsubProducts();
+      unsubIngredients();
+      unsubExpenses();
+      unsubEmployees();
+      unsubCustomers();
+    };
+  }, []);
+
+  // Sync initial props if updated
+  useEffect(() => {
+    if (initialOrders.length > 0) setOrders(initialOrders);
+    if (initialProducts.length > 0) setProducts(initialProducts);
+    if (initialIngredients.length > 0) setIngredients(initialIngredients);
+    if (initialExpenses.length > 0) setExpenses(initialExpenses);
+    if (initialEmployees.length > 0) setEmployees(initialEmployees);
+    if (initialSuppliers.length > 0) setSuppliers(initialSuppliers);
+    if (initialPurchases.length > 0) setPurchases(initialPurchases);
+  }, [
+    initialOrders,
+    initialProducts,
+    initialIngredients,
+    initialExpenses,
+    initialEmployees,
+    initialSuppliers,
+    initialPurchases,
+  ]);
+
+  // 2. Navigation State
+  const [activeTab, setActiveTab] = useState<'bi' | 'specialized'>('bi');
+  const [selectedReportType, setSelectedReportType] = useState<ReportType>('sales');
+
+  // 3. Filter Controls State
+  const [filters, setFilters] = useState<ReportFilters>({
+    datePreset: 'all',
+    startDate: '',
+    endDate: '',
+    branch: 'all',
+    employee: 'all',
+    category: 'all',
+    customer: 'all',
+  });
+
+  const handleResetFilters = () => {
+    setFilters({
+      datePreset: 'all',
+      startDate: '',
+      endDate: '',
+      branch: 'all',
+      employee: 'all',
+      category: 'all',
+      customer: 'all',
+    });
   };
 
-  const handleDownloadInventoryPDF = () => {
-    downloadPDFReport(
-      "Kitchen Inventory & Stock Audit Report",
-      `Generated: ${new Date().toLocaleString()}`,
-      [
-        {
-          heading: "Raw Kitchen Ingredients",
-          columns: ["Ingredient Name", "Stock Level", "Min Alert Level", "Unit Cost", "Supplier"],
-          rows: ingredients.map(i => [i.name, `${i.stock} ${i.unit}`, `${i.minStockAlert} ${i.unit}`, `$${i.costPerUnit.toFixed(2)}`, i.supplierName])
-        },
-        {
-          heading: "Menu Dishes Stock",
-          columns: ["Dish Name", "Category", "Price", "Cost", "Stock"],
-          rows: products.map(p => [p.name, p.category, `$${p.price.toFixed(2)}`, `$${p.cost.toFixed(2)}`, `${p.stock} ${p.unit}`])
-        }
-      ]
-    );
-  };
+  // Derive filter lists
+  const availableBranches = useMemo(() => {
+    const set = new Set<string>();
+    orders.forEach((o) => {
+      if (o.branch) set.add(o.branch);
+    });
+    if (set.size === 0) {
+      set.add('Main Branch');
+      set.add('Downtown Express');
+      set.add('Airport Terminal');
+    }
+    return Array.from(set);
+  }, [orders]);
 
-  const handleDownloadStaffPDF = () => {
-    downloadPDFReport(
-      "Staff Sales Performance & Payroll Report",
-      `Generated: ${new Date().toLocaleString()}`,
-      [
-        {
-          heading: "Employee Performance Ranking",
-          columns: ["Employee Name", "Role", "Base Salary", "Total Sales Generated", "Orders Handled"],
-          rows: employees.map(e => [e.name, e.role, `$${e.salary.toFixed(2)}`, `$${e.totalSales.toFixed(2)}`, e.ordersCount])
-        }
-      ]
-    );
-  };
+  const availableEmployees = useMemo(() => {
+    return employees.map((e) => ({ id: e.id, name: e.name }));
+  }, [employees]);
 
-  const handleExportAllToExcel = () => {
-    const cols = ["Module", "Item Name", "Metric Value / Amount", "Details / Reference"];
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.category) set.add(p.category);
+    });
+    return Array.from(set);
+  }, [products]);
+
+  const availableCustomers = useMemo(() => {
+    return customers.map((c) => ({ id: c.id, name: c.name }));
+  }, [customers]);
+
+  // 4. Apply Filters to Collections
+  const filteredOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const orderDate = (o.createdAt || '').split('T')[0];
+
+      // Date filter
+      if (filters.startDate && orderDate < filters.startDate) return false;
+      if (filters.endDate && orderDate > filters.endDate) return false;
+
+      // Branch filter
+      if (filters.branch !== 'all' && o.branch && o.branch !== filters.branch) return false;
+
+      // Employee filter
+      if (
+        filters.employee !== 'all' &&
+        o.employeeName &&
+        o.employeeName.toLowerCase() !== filters.employee.toLowerCase()
+      )
+        return false;
+
+      // Customer filter
+      if (
+        filters.customer !== 'all' &&
+        o.customerName &&
+        o.customerName.toLowerCase() !== filters.customer.toLowerCase()
+      )
+        return false;
+
+      // Category filter (if order has items matching category)
+      if (filters.category !== 'all') {
+        const hasMatchingCategory = (o.items || []).some((item) => {
+          const prod = products.find((p) => p.id === item.productId || p.name === item.productName);
+          return prod?.category === filters.category;
+        });
+        if (!hasMatchingCategory) return false;
+      }
+
+      return true;
+    });
+  }, [orders, products, filters]);
+
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((e) => {
+      const expDate = (e.createdAt || '').split('T')[0];
+      if (filters.startDate && expDate < filters.startDate) return false;
+      if (filters.endDate && expDate > filters.endDate) return false;
+      return true;
+    });
+  }, [expenses, filters]);
+
+  // 5. Global Export Master Excel & Print
+  const handleExportMasterExcel = () => {
+    const columns = ['Module', 'Reference / Item Name', 'Amount / Metric', 'Category / Details'];
     const rows = [
-      ...orders.map(o => ["Order", o.orderNumber, `$${o.totalAmount.toFixed(2)}`, `Profit: $${o.profit.toFixed(2)}`]),
-      ...expenses.map(e => ["Expense", e.title, `$${e.amount.toFixed(2)}`, e.category]),
-      ...ingredients.map(i => ["Ingredient", i.name, `${i.stock} ${i.unit}`, i.supplierName]),
-      ...employees.map(e => ["Employee", e.name, `$${e.totalSales.toFixed(2)} sales`, e.role])
+      ...filteredOrders.map((o) => [
+        'Sales Order',
+        o.orderNumber || o.id.slice(0, 6),
+        `$${o.totalAmount.toFixed(2)}`,
+        `Customer: ${o.customerName || 'Walk-in'} | Payment: ${(o.paymentMethod || 'cash').toUpperCase()}`,
+      ]),
+      ...filteredExpenses.map((e) => [
+        'Expense',
+        e.title,
+        `$${e.amount.toFixed(2)}`,
+        `Category: ${e.category} | Created by: ${e.createdBy || 'Admin'}`,
+      ]),
+      ...ingredients.map((i) => [
+        'Inventory Ingredient',
+        i.name,
+        `${i.stock} ${i.unit}`,
+        `Valuation: $${(i.stock * i.costPerUnit).toFixed(2)} | Supplier: ${i.supplierName}`,
+      ]),
+      ...employees.map((e) => [
+        'Staff Performance',
+        e.name,
+        `$${(e.totalSales || 0).toFixed(2)} sales`,
+        `Role: ${e.role} | Salary: $${e.salary.toFixed(2)}`,
+      ]),
     ];
 
-    exportToExcel("Full_Restaurant_ERP_Master_Export", cols, rows);
+    exportToExcel('Full_Restaurant_BI_Master_Audit', columns, rows);
   };
+
+  const handlePrintFullAudit = () => {
+    const totalRev = filteredOrders.reduce((a, b) => a + b.totalAmount, 0);
+    const totalCogs = filteredOrders.reduce((a, b) => a + (b.cogs || 0), 0);
+    const totalExp = filteredExpenses.reduce((a, b) => a + (b.amount || 0), 0);
+    const netProfit = totalRev - totalCogs - totalExp;
+
+    printReportWindow(
+      'Executive Business Intelligence Audit',
+      `Period: ${filters.datePreset.toUpperCase()} | Firestore Database Ledger`,
+      [
+        {
+          heading: 'Executive Financial Summary',
+          columns: ['KPI Line Item', 'Amount ($USD)', 'Notes'],
+          rows: [
+            ['Gross Sales Revenue', `$${totalRev.toFixed(2)}`, 'Total Completed Sales Inflow'],
+            ['Cost of Goods Sold (COGS)', `$${totalCogs.toFixed(2)}`, 'Raw Material Food Cost'],
+            ['Operating Expenses', `$${totalExp.toFixed(2)}`, 'Overhead & Utility Costs'],
+            ['Net Operating Income', `$${netProfit.toFixed(2)}`, 'Bottom-line Profit Position'],
+          ],
+        },
+        {
+          heading: 'Filter Parameters Applied',
+          columns: ['Filter Name', 'Selected Value'],
+          rows: [
+            ['Date Range Preset', filters.datePreset.toUpperCase()],
+            ['Branch Filter', filters.branch],
+            ['Employee Filter', filters.employee],
+            ['Category Filter', filters.category],
+            ['Customer Filter', filters.customer],
+          ],
+        },
+      ]
+    );
+  };
+
+  // 12 Specialized Report Tabs Info
+  const reportTabs: { type: ReportType; label: string; icon: React.ElementType }[] = [
+    { type: 'sales', label: 'Sales Report', icon: DollarSign },
+    { type: 'orders', label: 'Orders Velocity', icon: BarChart3 },
+    { type: 'customers', label: 'Customers & LTV', icon: Users },
+    { type: 'inventory', label: 'Inventory Assets', icon: Package },
+    { type: 'employees', label: 'Employee Performance', icon: UserCheck },
+    { type: 'suppliers', label: 'Suppliers & POs', icon: Building2 },
+    { type: 'kitchen', label: 'Kitchen Operations', icon: Utensils },
+    { type: 'delivery', label: 'Delivery & Fleet', icon: Truck },
+    { type: 'expenses', label: 'Expenses Audit', icon: CreditCard },
+    { type: 'revenue', label: 'Revenue & Taxes', icon: TrendingUp },
+    { type: 'profit', label: 'Gross & Net Profit', icon: PieChart },
+    { type: 'cashflow', label: 'Cash Flow Stream', icon: DollarSign },
+  ];
 
   return (
     <div className="space-y-6">
-      
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* 1. Header Banner */}
+      <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <FileSpreadsheet className="w-6 h-6 text-emerald-400" />
-            PDF Reports & Excel Export Hub
+            <BarChart3 className="w-6 h-6 text-emerald-400" />
+            Executive Business Intelligence & Analytics Module
           </h2>
-          <p className="text-xs text-slate-400">
-            Generate printable PDF financial audits and download Excel spreadsheet datasets
+          <p className="text-xs text-slate-400 mt-1">
+            Real-time Firestore analytics, peak hours heatmaps, cost benchmarking & multi-format export center
           </p>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handlePrintFullAudit}
+            className="bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 font-bold px-3.5 py-2.5 rounded-2xl text-xs transition flex items-center gap-2 cursor-pointer border border-slate-700/60"
+          >
+            <Printer className="w-4 h-4" /> Print Master Statement
+          </button>
+          <button
+            onClick={handleExportMasterExcel}
+            className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-2xl text-xs transition flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Export Master Excel (.XLSX)
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Global Filter Bar */}
+      <FilterBar
+        filters={filters}
+        onChangeFilters={setFilters}
+        branches={availableBranches}
+        employees={availableEmployees}
+        categories={availableCategories}
+        customers={availableCustomers}
+        onReset={handleResetFilters}
+      />
+
+      {/* 3. Primary Section Navigation (BI Dashboards vs 12 Specialized Reports) */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
         <button
-          onClick={handleExportAllToExcel}
-          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs transition cursor-pointer"
+          onClick={() => setActiveTab('bi')}
+          className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeTab === 'bi'
+              ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20'
+              : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+          }`}
         >
-          <Download className="w-4 h-4" />
-          Export Master Excel Worksheet
+          <BarChart3 className="w-4 h-4" />
+          BI Visual Dashboards & Heatmaps
+        </button>
+
+        <button
+          onClick={() => setActiveTab('specialized')}
+          className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeTab === 'specialized'
+              ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20'
+              : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          12 Specialized Report Modules
         </button>
       </div>
 
-      {/* Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Financial Report Card */}
-        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col justify-between shadow-xl">
-          <div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4">
-              <FileText className="w-6 h-6" />
+      {/* 4. Active Tab Rendering */}
+      {activeTab === 'bi' ? (
+        <BIAnalyticsDashboard
+          orders={filteredOrders}
+          products={products}
+          ingredients={ingredients}
+          expenses={filteredExpenses}
+          employees={employees}
+          suppliers={suppliers}
+          customers={customers}
+        />
+      ) : (
+        <div className="space-y-6">
+          {/* Sub-navigation bar for 12 Specialized Reports */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-3 shadow-xl overflow-x-auto">
+            <div className="flex items-center gap-2 min-w-max">
+              {reportTabs.map((tab) => {
+                const Icon = tab.icon;
+                const isSelected = selectedReportType === tab.type;
+                return (
+                  <button
+                    key={tab.type}
+                    onClick={() => setSelectedReportType(tab.type)}
+                    className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                      isSelected
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-md'
+                        : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800/80'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
-            <h3 className="text-base font-bold text-white mb-1">Financial & Income Audit</h3>
-            <p className="text-xs text-slate-400 mb-4">
-              Comprehensive profit & loss analysis, revenue, COGS, and itemized operational expenses.
-            </p>
           </div>
 
-          <div className="space-y-2 pt-4 border-t border-slate-800">
-            <button
-              onClick={handleDownloadFinancialPDF}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 px-4 rounded-xl text-xs border border-slate-700 transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Printer className="w-4 h-4 text-emerald-400" />
-              Download PDF Report
-            </button>
-          </div>
+          {/* Active Specialized Report Container */}
+          <SpecializedReportModule
+            reportType={selectedReportType}
+            orders={filteredOrders}
+            products={products}
+            ingredients={ingredients}
+            expenses={filteredExpenses}
+            employees={employees}
+            suppliers={suppliers}
+            purchases={purchases}
+            customers={customers}
+          />
         </div>
-
-        {/* Inventory Report Card */}
-        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col justify-between shadow-xl">
-          <div>
-            <div className="w-12 h-12 rounded-2xl bg-teal-500/10 text-teal-400 flex items-center justify-center mb-4">
-              <FileSpreadsheet className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-bold text-white mb-1">Kitchen & Inventory Audit</h3>
-            <p className="text-xs text-slate-400 mb-4">
-              Detailed breakdown of raw kitchen ingredients, stock levels, reorder thresholds, and suppliers.
-            </p>
-          </div>
-
-          <div className="space-y-2 pt-4 border-t border-slate-800">
-            <button
-              onClick={handleDownloadInventoryPDF}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 px-4 rounded-xl text-xs border border-slate-700 transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Printer className="w-4 h-4 text-teal-400" />
-              Download PDF Report
-            </button>
-          </div>
-        </div>
-
-        {/* Staff & Payroll Report Card */}
-        <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 flex flex-col justify-between shadow-xl">
-          <div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-bold text-white mb-1">Staff Sales & Payroll Audit</h3>
-            <p className="text-xs text-slate-400 mb-4">
-              Employee sales ranking leaderboard, orders handled count, and payroll status.
-            </p>
-          </div>
-
-          <div className="space-y-2 pt-4 border-t border-slate-800">
-            <button
-              onClick={handleDownloadStaffPDF}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 px-4 rounded-xl text-xs border border-slate-700 transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Printer className="w-4 h-4 text-amber-400" />
-              Download PDF Report
-            </button>
-          </div>
-        </div>
-
-      </div>
-
+      )}
     </div>
   );
 };
