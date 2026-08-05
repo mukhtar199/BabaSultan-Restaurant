@@ -1,0 +1,732 @@
+import React, { useState, useEffect } from 'react';
+import { Product, Order, Customer, SelectedOptionChoice, OrderType } from '../../types';
+import { CartItem, POSCheckoutPayload, ReceiptData } from '../../domain/entities/pos';
+import { createOrderFirestore, holdOrderFirestore, fetchHoldOrdersFirestore, fetchTablesFirestore, fetchCustomersFirestore } from '../../lib/firebase';
+import { useAuth } from '../context/AuthContext';
+import { calculateCartTotals } from '../../domain/services/posService';
+import { ProductOptionModal } from './pos/ProductOptionModal';
+import { CustomerModal } from './pos/CustomerModal';
+import { HoldOrdersModal } from './pos/HoldOrdersModal';
+import { PaymentModal } from './pos/PaymentModal';
+import { ReceiptModal } from './pos/ReceiptModal';
+import {
+  ShoppingBag,
+  Search,
+  Plus,
+  Minus,
+  Trash2,
+  CheckCircle2,
+  CreditCard,
+  Utensils,
+  X,
+  Package,
+  Clock,
+  User,
+  Tag,
+  PauseCircle,
+  UserCheck,
+  Percent,
+  SlidersHorizontal,
+  Flame,
+  Truck,
+  Globe,
+  Bookmark
+} from 'lucide-react';
+
+interface POSViewProps {
+  products: Product[];
+  onOrderCompleted?: () => void;
+}
+
+export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) => {
+  const { user, role } = useAuth();
+
+  // Search & Category Filters
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Cart State
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [orderType, setOrderType] = useState<OrderType>('dine_in');
+  const [tableNumber, setTableNumber] = useState<string>('T-01');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  // Discount & Tax
+  const [taxRatePercent, setTaxRatePercent] = useState<number>(5);
+  const [discountValue, setDiscountValue] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+
+  // Modals
+  const [activeProductForOption, setActiveProductForOption] = useState<Product | null>(null);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState<boolean>(false);
+  const [isHoldModalOpen, setIsHoldModalOpen] = useState<boolean>(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false);
+  const [completedReceipt, setCompletedReceipt] = useState<ReceiptData | null>(null);
+
+  // Held Orders Counter
+  const [heldOrdersCount, setHeldOrdersCount] = useState<number>(0);
+
+  // Refresh held orders count
+  const refreshHoldCount = () => {
+    fetchHoldOrdersFirestore()
+      .then(res => setHeldOrdersCount(res.length))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    refreshHoldCount();
+  }, []);
+
+  // Categories list
+  const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
+
+  // Search & filter matching products
+  const filteredProducts = products.filter(p => {
+    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      p.name.toLowerCase().includes(q) ||
+      (p.nameEn && p.nameEn.toLowerCase().includes(q)) ||
+      (p.nameAr && p.nameAr.toLowerCase().includes(q)) ||
+      (p.nameSo && p.nameSo.toLowerCase().includes(q)) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q));
+    return matchesCategory && matchesSearch;
+  });
+
+  // Calculate cart totals
+  const cartTotals = calculateCartTotals(cart, taxRatePercent, discountValue, discountType);
+
+  // Product Click Handler
+  const handleProductClick = (product: Product) => {
+    if (product.stock <= 0 || product.availabilityStatus === 'out_of_stock' || product.availabilityStatus === 'disabled') {
+      return;
+    }
+
+    // If product has options, open Option Selector Modal
+    if (product.options && product.options.length > 0) {
+      setActiveProductForOption(product);
+    } else {
+      // Add directly to cart
+      setCart(prev => {
+        const existing = prev.find(i => i.product.id === product.id && !i.selectedOptions?.length);
+        if (existing) {
+          if (existing.quantity >= product.stock) return prev;
+          return prev.map(i =>
+            i.product.id === product.id && !i.selectedOptions?.length
+              ? { ...i, quantity: i.quantity + 1, totalPrice: (i.quantity + 1) * i.unitPrice }
+              : i
+          );
+        }
+        return [
+          ...prev,
+          {
+            product,
+            quantity: 1,
+            unitPrice: product.price,
+            totalPrice: product.price
+          }
+        ];
+      });
+    }
+  };
+
+  // Option Modal Confirm Callback
+  const handleOptionConfirm = (
+    product: Product,
+    quantity: number,
+    selectedOptions: SelectedOptionChoice[],
+    itemNotes: string,
+    calculatedUnitPrice: number
+  ) => {
+    setCart(prev => [
+      ...prev,
+      {
+        product,
+        quantity,
+        selectedOptions,
+        selectedNotes: itemNotes,
+        unitPrice: calculatedUnitPrice,
+        totalPrice: calculatedUnitPrice * quantity
+      }
+    ]);
+    setActiveProductForOption(null);
+  };
+
+  const updateQuantity = (index: number, delta: number) => {
+    setCart(prev =>
+      prev
+        .map((item, idx) => {
+          if (idx === index) {
+            const newQty = item.quantity + delta;
+            if (newQty <= 0) return null;
+            if (newQty > item.product.stock) return item;
+            return {
+              ...item,
+              quantity: newQty,
+              totalPrice: newQty * item.unitPrice
+            };
+          }
+          return item;
+        })
+        .filter(Boolean) as CartItem[]
+    );
+  };
+
+  const removeFromCart = (index: number) => {
+    setCart(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  // Hold / Park Order
+  const handleHoldOrder = async () => {
+    if (cart.length === 0) return;
+    const holdName = prompt('Enter a reference label for this held order:', selectedCustomer ? selectedCustomer.name : `Table ${tableNumber}`);
+    if (!holdName) return;
+
+    try {
+      await holdOrderFirestore({
+        holdName,
+        customerName: selectedCustomer?.name || 'Walk-in Customer',
+        customerPhone: selectedCustomer?.phone || '',
+        orderType,
+        tableNumber: orderType === 'dine_in' ? tableNumber : '',
+        items: cart.map(i => ({
+          productId: i.product.id,
+          productName: i.product.name,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          unitCost: i.product.cost || i.product.price * 0.45,
+          totalPrice: i.totalPrice,
+          selectedOptions: i.selectedOptions,
+          notes: i.selectedNotes
+        })),
+        subtotal: cartTotals.subtotal,
+        tax: cartTotals.tax,
+        discountAmount: cartTotals.discountAmount,
+        totalAmount: cartTotals.grandTotal,
+        createdBy: user?.displayName || 'Cashier',
+        createdAt: new Date().toISOString()
+      });
+
+      // Clear current cart
+      setCart([]);
+      setSelectedCustomer(null);
+      refreshHoldCount();
+      alert('Order successfully held/parked!');
+    } catch (err: any) {
+      alert(`Failed to hold order: ${err.message}`);
+    }
+  };
+
+  // Resume Order Callback
+  const handleResumeOrder = (heldOrder: any) => {
+    const resumedCartItems: CartItem[] = heldOrder.items.map((i: any) => {
+      const matchProd = products.find(p => p.id === i.productId) || {
+        id: i.productId,
+        name: i.productName,
+        price: i.unitPrice,
+        cost: i.unitCost,
+        stock: 99,
+        category: 'Main Course',
+        availabilityStatus: 'enabled',
+        salesCount: 0
+      };
+      return {
+        product: matchProd as Product,
+        quantity: i.quantity,
+        selectedOptions: i.selectedOptions,
+        selectedNotes: i.notes,
+        unitPrice: i.unitPrice,
+        totalPrice: i.totalPrice
+      };
+    });
+
+    setCart(resumedCartItems);
+    setOrderType(heldOrder.orderType || 'dine_in');
+    if (heldOrder.tableNumber) setTableNumber(heldOrder.tableNumber);
+    refreshHoldCount();
+  };
+
+  // Complete Payment Callback
+  const handleConfirmPayment = async (payload: POSCheckoutPayload) => {
+    const timestamp = new Date().toISOString();
+    const dateCode = new Date().toISOString().replace(/[-:T.]/g, '').slice(2, 10);
+    const randomSeq = Math.floor(1000 + Math.random() * 9000);
+    const orderNumber = `ORD-${dateCode}-${randomSeq}`;
+
+    const calculatedCOGS = cart.reduce((sum, item) => {
+      const itemCost = (item.product.cost || item.product.price * 0.45) * item.quantity;
+      return sum + itemCost;
+    }, 0);
+
+    const profit = payload.totalAmount - calculatedCOGS;
+
+    const fullOrder = await createOrderFirestore({
+      orderNumber,
+      customerId: selectedCustomer?.id,
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      orderType: payload.orderType,
+      tableNumber: payload.tableNumber,
+      items: cart.map(i => ({
+        productId: i.product.id,
+        productName: i.product.name,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        unitCost: i.product.cost || i.product.price * 0.45,
+        totalPrice: i.totalPrice,
+        selectedOptions: i.selectedOptions,
+        notes: i.selectedNotes
+      })),
+      subtotal: payload.subtotal,
+      tax: payload.tax,
+      discountAmount: payload.discount,
+      totalAmount: payload.totalAmount,
+      cogs: calculatedCOGS,
+      profit,
+      employeeId: user?.uid || 'emp-pos',
+      employeeName: user?.displayName || 'Senior Cashier',
+      status: 'completed',
+      paymentMethod: payload.paymentMethod,
+      paymentStatus: 'paid',
+      createdAt: timestamp
+    });
+
+    const receipt: ReceiptData = {
+      orderId: fullOrder.id,
+      orderNumber,
+      timestamp,
+      cashierName: user?.displayName || 'Cashier',
+      orderType: payload.orderType,
+      tableNumber: payload.tableNumber,
+      customerName: payload.customerName,
+      items: cart,
+      subtotal: payload.subtotal,
+      tax: payload.tax,
+      discount: payload.discount,
+      totalAmount: payload.totalAmount,
+      paymentMethod: payload.paymentMethod,
+      amountTendered: payload.amountTendered,
+      changeDue: payload.changeDue
+    };
+
+    setCompletedReceipt(receipt);
+    setIsPaymentModalOpen(false);
+
+    // Reset POS Cart
+    setCart([]);
+    setSelectedCustomer(null);
+    setDiscountValue(0);
+
+    if (onOrderCompleted) onOrderCompleted();
+  };
+
+  return (
+    <div className="space-y-6">
+      
+      {/* POS Top Header Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-extrabold text-white flex items-center gap-2">
+            <ShoppingBag className="w-7 h-7 text-emerald-400" />
+            Restaurant POS Terminal
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Real-time cashier checkout terminal connected directly to Firestore catalog & inventory
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Held Orders Button */}
+          <button
+            onClick={() => setIsHoldModalOpen(true)}
+            className="px-4 py-2 rounded-2xl bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 border border-amber-500/30 text-xs font-bold transition cursor-pointer flex items-center gap-2 shadow-md"
+          >
+            <PauseCircle className="w-4 h-4" />
+            <span>Held Orders ({heldOrdersCount})</span>
+          </button>
+
+          {/* Cashier Badge */}
+          <div className="flex items-center gap-2 bg-slate-950 px-3.5 py-2 rounded-2xl border border-slate-800 text-xs text-slate-300">
+            <User className="w-4 h-4 text-emerald-400" />
+            <span>Cashier: <strong className="text-white">{user?.displayName || 'Cashier'}</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {/* POS Terminal Split Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left 2 Columns: Product Search, Category Tabs & Catalog Grid */}
+        <div className="lg:col-span-2 space-y-4">
+          
+          {/* Search Bar & Categories */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <input
+                type="text"
+                placeholder="Search dish (EN / AR / SO), SKU, or barcode..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="flex overflow-x-auto gap-1.5 no-scrollbar py-1">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+                    selectedCategory === cat
+                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Product Catalog Cards Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {filteredProducts.map(p => {
+              const isOutOfStock = p.stock <= 0 || p.availabilityStatus === 'out_of_stock' || p.availabilityStatus === 'disabled';
+              const itemsInCart = cart.filter(i => i.product.id === p.id);
+              const totalCartQty = itemsInCart.reduce((s, i) => s + i.quantity, 0);
+
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => handleProductClick(p)}
+                  className={`bg-slate-900 border rounded-2xl p-4 transition flex flex-col justify-between relative cursor-pointer group ${
+                    isOutOfStock
+                      ? 'opacity-50 border-slate-800 cursor-not-allowed'
+                      : totalCartQty > 0
+                      ? 'border-emerald-500/80 bg-emerald-500/5 shadow-lg shadow-emerald-500/10'
+                      : 'border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-1 mb-2">
+                      <span className="text-[9px] uppercase font-extrabold tracking-wider text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                        {p.category}
+                      </span>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                        isOutOfStock
+                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                          : p.stock <= (p.minStockAlert || 5)
+                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                          : 'bg-emerald-500/10 text-emerald-400'
+                      }`}>
+                        {isOutOfStock ? 'Out of Stock' : `${p.stock} left`}
+                      </span>
+                    </div>
+
+                    <h4 className="text-xs font-bold text-white group-hover:text-emerald-400 transition line-clamp-1">
+                      {p.name}
+                    </h4>
+                    {p.nameAr && <p className="text-[10px] text-slate-400 line-clamp-1">{p.nameAr}</p>}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-800/60">
+                    <span className="text-sm font-extrabold text-emerald-400">
+                      ${p.price.toFixed(2)}
+                    </span>
+                    <button
+                      disabled={isOutOfStock}
+                      className={`p-2 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+                        totalCartQty > 0
+                          ? 'bg-emerald-500 text-slate-950'
+                          : 'bg-slate-800 text-slate-200 group-hover:bg-emerald-500 group-hover:text-slate-950'
+                      }`}
+                    >
+                      {totalCartQty > 0 ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{totalCartQty}</span>
+                        </>
+                      ) : (
+                        <Plus className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+        </div>
+
+        {/* Right Column: Active Terminal Cart Panel */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between shadow-2xl space-y-4">
+          <div className="space-y-4">
+            
+            {/* Cart Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-emerald-400" />
+                Current Order Cart
+              </h3>
+              <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full font-bold border border-emerald-500/20">
+                {cart.length} {cart.length === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+
+            {/* Order Types Selector */}
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-1 bg-slate-950 p-1 rounded-2xl border border-slate-800">
+              {[
+                { id: 'dine_in', label: 'Dine In' },
+                { id: 'takeaway', label: 'Takeout' },
+                { id: 'delivery', label: 'Delivery' },
+                { id: 'online', label: 'Online' },
+                { id: 'reservation', label: 'Reserve' }
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setOrderType(t.id as OrderType)}
+                  className={`py-1.5 rounded-xl text-[10px] font-bold transition cursor-pointer ${
+                    orderType === t.id
+                      ? 'bg-emerald-500 text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Customer & Table Selector Bar */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {/* Customer selector */}
+              <button
+                onClick={() => setIsCustomerModalOpen(true)}
+                className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 hover:border-slate-700 text-left transition cursor-pointer flex items-center justify-between group"
+              >
+                <div className="truncate">
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Customer</span>
+                  <span className="text-white font-bold truncate block group-hover:text-emerald-400">
+                    {selectedCustomer ? selectedCustomer.name : 'Walk-in Guest'}
+                  </span>
+                </div>
+                <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              </button>
+
+              {/* Table selector (if Dine In) */}
+              {orderType === 'dine_in' ? (
+                <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Table</span>
+                    <select
+                      value={tableNumber}
+                      onChange={e => setTableNumber(e.target.value)}
+                      className="bg-transparent text-emerald-400 font-extrabold focus:outline-none text-xs"
+                    >
+                      {['T-01', 'T-02', 'T-03', 'T-04', 'T-05', 'VIP-1', 'VIP-2', 'Patio-1'].map(t => (
+                        <option key={t} value={t} className="bg-slate-900 text-white">{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <Utensils className="w-4 h-4 text-emerald-400" />
+                </div>
+              ) : (
+                <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 flex items-center justify-between opacity-60">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">No Table Needed</span>
+                </div>
+              )}
+            </div>
+
+            {/* Cart Items Scroll Container */}
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1 no-scrollbar">
+              {cart.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 space-y-2">
+                  <Package className="w-10 h-10 mx-auto text-slate-700" />
+                  <p className="text-xs">Cart is currently empty</p>
+                  <p className="text-[10px] text-slate-600">Select dishes from the catalog to build an order</p>
+                </div>
+              ) : (
+                cart.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs"
+                  >
+                    <div className="flex-1 pr-2">
+                      <h5 className="font-bold text-white line-clamp-1">{item.product.name}</h5>
+                      <span className="text-slate-400 text-[10px]">
+                        ${item.unitPrice.toFixed(2)} × {item.quantity}
+                      </span>
+                      {item.selectedOptions && item.selectedOptions.length > 0 && (
+                        <p className="text-[9px] text-emerald-400 font-semibold line-clamp-1">
+                          + {item.selectedOptions.map(o => o.choiceName).join(', ')}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center bg-slate-900 rounded-xl border border-slate-800 p-0.5">
+                        <button
+                          onClick={() => updateQuantity(idx, -1)}
+                          className="p-1 hover:bg-slate-800 rounded-lg text-slate-300 cursor-pointer"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="px-2 font-bold text-emerald-400 text-xs">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(idx, 1)}
+                          className="p-1 hover:bg-slate-800 rounded-lg text-slate-300 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <span className="font-extrabold text-white w-14 text-right">
+                        ${item.totalPrice.toFixed(2)}
+                      </span>
+
+                      <button
+                        onClick={() => removeFromCart(idx)}
+                        className="text-slate-500 hover:text-rose-400 transition p-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Discount Control */}
+            {cart.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 flex items-center gap-1 font-semibold">
+                    <Tag className="w-3.5 h-3.5 text-amber-400" /> Apply Discount:
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={discountValue || ''}
+                      onChange={e => setDiscountValue(Number(e.target.value))}
+                      className="w-16 bg-slate-950 border border-slate-800 rounded-xl px-2 py-1 text-white font-bold text-xs text-right focus:outline-none focus:border-emerald-500"
+                    />
+                    <select
+                      value={discountType}
+                      onChange={e => setDiscountType(e.target.value as any)}
+                      className="bg-slate-950 text-emerald-400 font-bold border border-slate-800 px-2 py-1 rounded-xl text-xs"
+                    >
+                      <option value="percentage">%</option>
+                      <option value="fixed">$</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* Cart Totals Summary & Action Buttons */}
+          <div className="pt-3 border-t border-slate-800 space-y-3">
+            <div className="space-y-1.5 text-xs text-slate-400">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span className="text-white font-medium">${cartTotals.subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>VAT ({taxRatePercent}%)</span>
+                <span className="text-white font-medium">${cartTotals.tax.toFixed(2)}</span>
+              </div>
+              {cartTotals.discountAmount > 0 && (
+                <div className="flex justify-between text-emerald-400 font-bold">
+                  <span>Discount</span>
+                  <span>-${cartTotals.discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-base font-extrabold text-white pt-2 border-t border-slate-800">
+                <span>Grand Total</span>
+                <span className="text-emerald-400">${cartTotals.grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Action Row: Hold Order & Proceed to Payment */}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                disabled={cart.length === 0}
+                onClick={handleHoldOrder}
+                className="bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-30 border border-amber-500/30 text-amber-400 font-bold py-3 rounded-2xl transition cursor-pointer text-xs flex items-center justify-center gap-1"
+              >
+                <Bookmark className="w-4 h-4" />
+                <span>Hold</span>
+              </button>
+
+              <button
+                disabled={cart.length === 0}
+                onClick={() => setIsPaymentModalOpen(true)}
+                className="col-span-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-extrabold py-3 rounded-2xl transition cursor-pointer shadow-lg shadow-emerald-500/20 text-xs flex items-center justify-center gap-2"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>Pay (${cartTotals.grandTotal.toFixed(2)})</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* Product Options Modal */}
+      {activeProductForOption && (
+        <ProductOptionModal
+          product={activeProductForOption}
+          onClose={() => setActiveProductForOption(null)}
+          onConfirm={handleOptionConfirm}
+        />
+      )}
+
+      {/* Customer Modal */}
+      {isCustomerModalOpen && (
+        <CustomerModal
+          onClose={() => setIsCustomerModalOpen(false)}
+          onSelectCustomer={cust => setSelectedCustomer(cust)}
+        />
+      )}
+
+      {/* Held Orders Modal */}
+      {isHoldModalOpen && (
+        <HoldOrdersModal
+          onClose={() => setIsHoldModalOpen(false)}
+          onResumeOrder={handleResumeOrder}
+        />
+      )}
+
+      {/* Payment Modal */}
+      {isPaymentModalOpen && (
+        <PaymentModal
+          cart={cart}
+          orderType={orderType}
+          tableNumber={tableNumber}
+          subtotal={cartTotals.subtotal}
+          tax={cartTotals.tax}
+          discountAmount={cartTotals.discountAmount}
+          grandTotal={cartTotals.grandTotal}
+          selectedCustomer={selectedCustomer}
+          cashierName={user?.displayName || 'Senior Cashier'}
+          cashierUid={user?.uid || 'emp-pos'}
+          onClose={() => setIsPaymentModalOpen(false)}
+          onConfirmPayment={handleConfirmPayment}
+        />
+      )}
+
+      {/* Receipt & Invoice Modal */}
+      {completedReceipt && (
+        <ReceiptModal
+          receipt={completedReceipt}
+          onClose={() => setCompletedReceipt(null)}
+        />
+      )}
+
+    </div>
+  );
+};
