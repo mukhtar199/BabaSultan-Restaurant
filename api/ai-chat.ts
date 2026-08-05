@@ -1,6 +1,4 @@
 import { GoogleGenAI } from "@google/genai";
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-
 import { getApps, initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
@@ -13,8 +11,8 @@ if (!getApps().length) {
 const db = getFirestore();
 
 export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
+  req: any,
+  res: any
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({
