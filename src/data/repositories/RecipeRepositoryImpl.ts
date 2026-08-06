@@ -65,7 +65,9 @@ export class RecipeRepositoryImpl implements IRecipeRepository {
         snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Recipe));
         callback(list);
       },
-      (err) => console.warn('Note subscribing recipes:', err?.message || err)
+      (err) => {
+        console.warn('Note subscribing recipes:', err?.message || err);
+      }
     );
   }
 

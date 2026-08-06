@@ -14,7 +14,8 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   EmailAuthProvider,
-  reauthenticateWithCredential
+  reauthenticateWithCredential,
+  signInAnonymously
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, COLLECTIONS, logActivityFirestore, upsertUserRecordFirestore } from '../../lib/firebase';
@@ -142,6 +143,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
+        if (firebaseUser.isAnonymous && process.env.NODE_ENV !== 'development') {
+          // In production, anonymous users must not have staff ERP user records
+          setUserRecord(null);
+          setSessionStartTime(null);
+          setLoading(false);
+          return;
+        }
         setSessionStartTime(new Date());
         setLastActivityTime(new Date());
         await fetchOrCreateUserRecord(firebaseUser);

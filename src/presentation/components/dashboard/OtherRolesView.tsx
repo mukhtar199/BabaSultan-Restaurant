@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { KPICard } from './KPICard';
 import { Order, Employee } from '../../../types';
 import {
@@ -22,18 +23,21 @@ interface OtherRolesViewProps {
 }
 
 export const AdminView: React.FC<OtherRolesViewProps> = ({ orders, employees, onNavigateToTab }) => {
+  const { t } = useAuth();
+  const d: Record<string, any> = t.dashboard || {};
+
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="bg-purple-500/10 text-purple-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-purple-500/20 uppercase tracking-wider">
-              System Admin
+              {d.systemAdmin || 'System Admin'}
             </span>
-            <span className="text-xs text-slate-400">• Full RBAC Architecture Access</span>
+            <span className="text-xs text-slate-400">• {d.fullRbac || 'Full RBAC Architecture Access'}</span>
           </div>
-          <h2 className="text-2xl font-bold text-white">System Administration Dashboard</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Manage enterprise access control, user accounts, security rules, and database collections.</p>
+          <h2 className="text-2xl font-bold text-white">{d.adminTitle || 'System Administration Dashboard'}</h2>
+          <p className="text-xs text-slate-400 mt-0.5">{d.adminSubtitle || 'Manage enterprise access control, user accounts, security rules, and database collections.'}</p>
         </div>
 
         {onNavigateToTab && (
@@ -41,7 +45,7 @@ export const AdminView: React.FC<OtherRolesViewProps> = ({ orders, employees, on
             onClick={() => onNavigateToTab('admin')}
             className="bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition cursor-pointer shadow-lg"
           >
-            Open Admin Control Panel →
+            {d.openAdminControl || 'Open Admin Control Panel →'}
           </button>
         )}
       </div>
@@ -57,6 +61,9 @@ export const AdminView: React.FC<OtherRolesViewProps> = ({ orders, employees, on
 };
 
 export const WaiterView: React.FC<OtherRolesViewProps> = ({ orders, onNavigateToTab }) => {
+  const { t } = useAuth();
+  const d: Record<string, any> = t.dashboard || {};
+
   const readyTableOrders = orders.filter(o => o.status === 'ready_for_pickup' || o.prepStatus === 'ready');
   const activeDineIn = orders.filter(o => o.orderType === 'dine_in' || !o.orderType);
 
@@ -65,10 +72,10 @@ export const WaiterView: React.FC<OtherRolesViewProps> = ({ orders, onNavigateTo
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <span className="bg-emerald-500/10 text-emerald-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-500/20 uppercase tracking-wider block w-fit mb-1">
-            Floor Staff
+            {d.floorStaff || 'Floor Staff'}
           </span>
-          <h2 className="text-2xl font-bold text-white">Dining Room Waiter Station</h2>
-          <p className="text-xs text-slate-400">Track active dining tables, ready dishes from kitchen, and floor service requests.</p>
+          <h2 className="text-2xl font-bold text-white">{d.waiterTitle || 'Dining Room Waiter Station'}</h2>
+          <p className="text-xs text-slate-400">{d.waiterSubtitle || 'Track active dining tables, ready dishes from kitchen, and floor service requests.'}</p>
         </div>
 
         {onNavigateToTab && (
@@ -76,7 +83,7 @@ export const WaiterView: React.FC<OtherRolesViewProps> = ({ orders, onNavigateTo
             onClick={() => onNavigateToTab('pos')}
             className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition cursor-pointer shadow-lg"
           >
-            + Create Table Order
+            {d.createTableOrder || '+ Create Table Order'}
           </button>
         )}
       </div>

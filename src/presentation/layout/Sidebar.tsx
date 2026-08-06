@@ -23,7 +23,8 @@ import {
   UserCog,
   HeartHandshake,
   GitFork,
-  Truck
+  Truck,
+  Activity
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -63,7 +64,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'ai-operations', label: t.navigation.aiOperations, icon: BrainCircuit, permission: permissions.canAccessAIAdvisor },
     { id: 'ai-ceo', label: t.navigation.aiCEO, icon: Bot, permission: permissions.canAccessAIAdvisor },
     { id: 'profile', label: t.navigation.profile, icon: UserCheck, permission: true },
-    { id: 'settings', label: t.navigation.settings, icon: Settings, permission: permissions.canManageBranchSettings }
+    { id: 'settings', label: t.navigation.settings, icon: Settings, permission: permissions.canManageBranchSettings },
+    { id: 'diagnostics', label: 'System Diagnostics', icon: Activity, permission: permissions.canManageBranchSettings }
   ];
 
   const handleLogout = async () => {

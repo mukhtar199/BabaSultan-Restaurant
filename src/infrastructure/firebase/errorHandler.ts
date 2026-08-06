@@ -24,7 +24,6 @@ export interface FirestoreErrorInfo {
       email?: string | null;
     }[];
   };
-  timestamp: string;
 }
 
 export function handleFirestoreError(
@@ -35,21 +34,20 @@ export function handleFirestoreError(
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid || 'anonymous-local',
-      email: auth.currentUser?.email || 'local@restaurant-erp.internal',
-      emailVerified: auth.currentUser?.emailVerified || false,
-      isAnonymous: auth.currentUser?.isAnonymous || true,
-      tenantId: auth.currentUser?.tenantId || null,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+      userId: auth?.currentUser?.uid || null,
+      email: auth?.currentUser?.email || null,
+      emailVerified: auth?.currentUser?.emailVerified || null,
+      isAnonymous: auth?.currentUser?.isAnonymous || null,
+      tenantId: auth?.currentUser?.tenantId || null,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []
     },
     operationType,
-    path,
-    timestamp: new Date().toISOString()
+    path
   };
 
-  console.warn('[Firestore Security/Database Warning]', JSON.stringify(errInfo, null, 2));
+  console.warn('[Firestore Operation Notice]', errInfo);
   return errInfo;
 }

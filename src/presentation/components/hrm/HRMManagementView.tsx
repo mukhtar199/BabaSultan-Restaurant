@@ -386,9 +386,9 @@ export const HRMManagementView: React.FC = () => {
             </span>
             <span className="text-xs text-slate-400">• Real-Time Firestore Synced</span>
           </div>
-          <h1 className="text-xl font-extrabold text-white mt-1">Human Resources & Employee Management</h1>
+          <h1 className="text-xl font-extrabold text-white mt-1">{t.hrm?.title || 'Human Resources & Employee Management'}</h1>
           <p className="text-xs text-slate-400">
-            Attendance, Custom Shifts, Monthly Payroll, Leave Workflows & 360° Employee Profiles
+            {t.hrm?.subtitle || 'Attendance, Custom Shifts, Monthly Payroll, Leave Workflows & 360° Employee Profiles'}
           </p>
         </div>
 
@@ -406,7 +406,7 @@ export const HRMManagementView: React.FC = () => {
             className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-4 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 transition"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Employee</span>
+            <span>{t.hrm?.addEmployee || 'Add Employee'}</span>
           </button>
         </div>
       </div>
@@ -414,13 +414,13 @@ export const HRMManagementView: React.FC = () => {
       {/* Main Navigation Bar */}
       <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-2 rounded-2xl overflow-x-auto">
         {[
-          { id: 'dashboard', label: 'HR Dashboard', icon: Users },
-          { id: 'employees', label: `Directory (${employees.length})`, icon: UserCheck },
-          { id: 'attendance', label: `Attendance (${attendance.length})`, icon: Clock },
-          { id: 'shifts', label: `Shifts (${shifts.length})`, icon: Building },
-          { id: 'payroll', label: `Payroll (${payroll.length})`, icon: DollarSign },
-          { id: 'leave', label: `Leaves (${leaveRequests.filter(l => l.workflowStatus !== 'Completed').length})`, icon: Calendar },
-          { id: 'performance', label: 'Performance', icon: TrendingUp }
+          { id: 'dashboard', label: t.hrm?.dashboard || 'HR Dashboard', icon: Users },
+          { id: 'employees', label: `${t.hrm?.directory || 'Directory'} (${employees.length})`, icon: UserCheck },
+          { id: 'attendance', label: `${t.hrm?.attendance || 'Attendance'} (${attendance.length})`, icon: Clock },
+          { id: 'shifts', label: `${t.hrm?.shifts || 'Shifts'} (${shifts.length})`, icon: Building },
+          { id: 'payroll', label: `${t.hrm?.payroll || 'Payroll'} (${payroll.length})`, icon: DollarSign },
+          { id: 'leave', label: `${t.hrm?.leave || 'Leaves'} (${leaveRequests.filter(l => l.workflowStatus !== 'Completed').length})`, icon: Calendar },
+          { id: 'performance', label: t.hrm?.performance || 'Performance', icon: TrendingUp }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

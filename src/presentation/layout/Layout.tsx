@@ -10,10 +10,11 @@ import { Footer } from './Footer';
 interface LayoutProps {
   currentView: string;
   onSelectView: (view: string) => void;
+  onOpenSetupWizard?: () => void;
   children: React.ReactNode;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ currentView, onSelectView, children }) => {
+export const Layout: React.FC<LayoutProps> = ({ currentView, onSelectView, onOpenSetupWizard, children }) => {
   const { themeMode, dir } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -25,7 +26,7 @@ export const Layout: React.FC<LayoutProps> = ({ currentView, onSelectView, child
       <div className={`min-h-screen flex flex-col font-sans transition-colors ${
         themeMode === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-slate-100'
       }`}>
-        <Header onMobileMenuToggle={() => setMobileOpen(true)} />
+        <Header onMobileMenuToggle={() => setMobileOpen(true)} onOpenSetupWizard={onOpenSetupWizard} />
 
         <div className="flex flex-1 overflow-hidden">
           <Sidebar

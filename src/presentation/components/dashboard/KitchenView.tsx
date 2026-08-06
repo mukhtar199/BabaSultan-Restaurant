@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { KPICard } from './KPICard';
 import { Order } from '../../../types';
 import { updateOrderStatusFirestore } from '../../../lib/firebase';
@@ -18,6 +19,9 @@ interface KitchenViewProps {
 }
 
 export const KitchenView: React.FC<KitchenViewProps> = ({ orders, onNavigateToTab }) => {
+  const { t } = useAuth();
+  const d: Record<string, any> = t.dashboard || {};
+
   // Kitchen Order Queues
   const newOrders = orders.filter(o => o.status === 'pending' || o.prepStatus === 'new');
   const preparingOrders = orders.filter(o => o.status === 'in_preparation' || o.prepStatus === 'preparing');
@@ -48,22 +52,22 @@ export const KitchenView: React.FC<KitchenViewProps> = ({ orders, onNavigateToTa
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="bg-amber-500/10 text-amber-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-amber-500/20 uppercase tracking-wider">
-              Line Chef KDS
+              {d.lineChefKds || 'Line Chef KDS'}
             </span>
-            <span className="text-xs text-slate-400">• Kitchen Display Screen</span>
+            <span className="text-xs text-slate-400">• {d.kitchenDisplayScreen || 'Kitchen Display Screen'}</span>
           </div>
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            Kitchen Preparation Station Display
+            {d.kitchenTitle || 'Kitchen Preparation Station Display'}
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Real-time ticket queue for line chefs, station load balancing, and preparation time tracking.
+            {d.kitchenSubtitle || 'Real-time ticket queue for line chefs, station load balancing, and preparation time tracking.'}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 flex items-center gap-2">
             <Flame className="w-4 h-4 text-emerald-400 animate-pulse" />
-            STATIONS ACTIVE
+            {d.stationsActive || 'STATIONS ACTIVE'}
           </span>
         </div>
       </div>
@@ -72,7 +76,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({ orders, onNavigateToTa
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <KPICard
-          title="New Orders Queue"
+          title={d.newOrdersQueue || 'New Orders Queue'}
           value={newOrders.length}
           sublabel="Awaiting grill / prep start"
           icon={Clock}
@@ -82,7 +86,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({ orders, onNavigateToTa
         />
 
         <KPICard
-          title="Preparing on Stove/Grill"
+          title={d.preparingOnStove || 'Preparing on Stove/Grill'}
           value={preparingOrders.length}
           sublabel="Active cooking tickets"
           icon={ChefHat}
@@ -90,7 +94,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({ orders, onNavigateToTa
         />
 
         <KPICard
-          title="Ready for Pickup"
+          title={d.readyForPickup || 'Ready for Pickup'}
           value={readyOrders.length}
           sublabel="Staged for waiter / driver"
           icon={CheckCircle2}
@@ -98,7 +102,7 @@ export const KitchenView: React.FC<KitchenViewProps> = ({ orders, onNavigateToTa
         />
 
         <KPICard
-          title="Delayed Orders Alert"
+          title={d.delayedAlerts || 'Delayed Prep Alerts'}
           value={`${delayedOrders.length} Tickets`}
           sublabel={delayedOrders.length > 0 ? 'Exceeded target prep time!' : 'All orders within target time'}
           icon={AlertTriangle}

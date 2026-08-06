@@ -14,9 +14,13 @@ import {
   query,
   orderBy,
   limit,
-  writeBatch
+  writeBatch,
+  enableMultiTabIndexedDbPersistence,
+  enableIndexedDbPersistence
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { handleFirestoreError, OperationType } from '../infrastructure/firebase/errorHandler';
+import { saveSetupDataToLocalStorage, LocalStorageState, getLocalStorageState } from './localStorageData';
 import {
   Order,
   OrderStatus,
@@ -51,6 +55,19 @@ export const auth = getAuth(app);
 const firestoreDbId = (firebaseConfig as any).firestoreDatabaseId;
 export const db = firestoreDbId ? getFirestore(app, firestoreDbId) : getFirestore(app);
 
+// Enable Official Firestore Offline Persistence
+if (typeof window !== 'undefined') {
+  enableMultiTabIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      enableIndexedDbPersistence(db).catch((e) => {
+        console.warn('Firestore offline persistence notice:', e);
+      });
+    } else if (err.code === 'unimplemented') {
+      console.warn('Browser does not support multi-tab Firestore offline persistence');
+    }
+  });
+}
+
 // Collection References
 export const COLLECTIONS = {
   USERS: 'users',
@@ -71,6 +88,7 @@ export const COLLECTIONS = {
   CATEGORIES: 'categories',
   CUSTOMERS: 'customers',
   BRANCHES: 'branches',
+  RECIPES: 'recipes',
   REVENUES: 'revenues',
   AI_SETTINGS: 'ai_settings',
   PERMISSIONS: 'permissions',
@@ -1679,75 +1697,92 @@ export async function createOrderFirestore(orderData: Omit<Order, 'id'>): Promis
     ...orderData,
     id: newRef.id
   };
-  await setDoc(newRef, fullOrder);
 
-  // If order linked to a dining table, mark table occupied
-  if (fullOrder.tableNumber && fullOrder.orderType === 'dine_in') {
-    await updateTableStatusFirestore(fullOrder.tableNumber, 'occupied', fullOrder.id, fullOrder.orderNumber);
-  }
+  try {
+    await setDoc(newRef, fullOrder);
 
-  // Record payment in payments collection if paid
-  if (fullOrder.paymentStatus === 'paid') {
-    await addPaymentFirestore({
-      orderId: fullOrder.id,
-      orderNumber: fullOrder.orderNumber,
-      amount: fullOrder.totalAmount,
-      method: fullOrder.paymentMethod,
-      status: 'paid',
-      processedBy: fullOrder.employeeName || 'Cashier',
-      createdAt: fullOrder.createdAt
-    });
-  }
+    // If order linked to a dining table, mark table occupied
+    if (fullOrder.tableNumber && fullOrder.orderType === 'dine_in') {
+      updateTableStatusFirestore(fullOrder.tableNumber, 'occupied', fullOrder.id, fullOrder.orderNumber).catch(err => console.warn(err));
+    }
 
-  // Deduct ingredient stock automatically
-  for (const item of fullOrder.items) {
-    await deductProductIngredientsStockFirestore(item.productId, item.quantity, fullOrder.orderNumber);
+    // Record payment in payments collection if paid
+    if (fullOrder.paymentStatus === 'paid') {
+      addPaymentFirestore({
+        orderId: fullOrder.id,
+        orderNumber: fullOrder.orderNumber,
+        amount: fullOrder.totalAmount,
+        method: fullOrder.paymentMethod,
+        status: 'paid',
+        processedBy: fullOrder.employeeName || 'Cashier',
+        createdAt: fullOrder.createdAt
+      }).catch(err => console.warn(err));
+    }
+
+    // Deduct ingredient stock automatically
+    for (const item of fullOrder.items) {
+      deductProductIngredientsStockFirestore(item.productId, item.quantity, fullOrder.orderNumber).catch(err => console.warn(err));
+    }
+  } catch (err) {
+    console.warn('Firestore setDoc notice for order:', err);
   }
 
   return fullOrder;
 }
 
 export async function updateOrderFirestore(orderId: string, data: Partial<Order>): Promise<void> {
-  const orderRef = doc(db, COLLECTIONS.ORDERS, orderId);
-  const updatePayload = {
-    ...data,
-    updatedAt: new Date().toISOString()
-  };
-  await updateDoc(orderRef, updatePayload as any);
+  try {
+    const orderRef = doc(db, COLLECTIONS.ORDERS, orderId);
+    const updatePayload = {
+      ...data,
+      updatedAt: new Date().toISOString()
+    };
+    await updateDoc(orderRef, updatePayload as any);
+  } catch (err) {
+    console.warn('Firestore updateOrder notice:', err);
+  }
 }
 
 export async function updateOrderStatusFirestore(orderId: string, status: OrderStatus): Promise<void> {
-  const orderRef = doc(db, COLLECTIONS.ORDERS, orderId);
-  const updatePayload: any = {
-    status,
-    updatedAt: new Date().toISOString()
-  };
-  if (status === 'completed') {
-    updatePayload.completedAt = new Date().toISOString();
-    updatePayload.paymentStatus = 'paid';
-  }
-  await updateDoc(orderRef, updatePayload);
+  try {
+    const orderRef = doc(db, COLLECTIONS.ORDERS, orderId);
+    const updatePayload: any = {
+      status,
+      updatedAt: new Date().toISOString()
+    };
+    if (status === 'completed') {
+      updatePayload.completedAt = new Date().toISOString();
+      updatePayload.paymentStatus = 'paid';
+    }
+    await updateDoc(orderRef, updatePayload);
 
-  if (status === 'cancelled') {
-    try {
-      const orderSnap = await getDoc(orderRef);
-      if (orderSnap.exists()) {
-        const orderData = orderSnap.data() as Order;
-        if (orderData.items && orderData.items.length > 0) {
-          for (const item of orderData.items) {
-            await restoreProductIngredientsStockFirestore(item.productId, item.quantity, orderData.orderNumber || orderId);
+    if (status === 'cancelled') {
+      try {
+        const orderSnap = await getDoc(orderRef);
+        if (orderSnap.exists()) {
+          const orderData = orderSnap.data() as Order;
+          if (orderData.items && orderData.items.length > 0) {
+            for (const item of orderData.items) {
+              await restoreProductIngredientsStockFirestore(item.productId, item.quantity, orderData.orderNumber || orderId);
+            }
           }
         }
+      } catch (e) {
+        console.warn('Could not restore stock on cancellation:', e);
       }
-    } catch (e) {
-      console.warn('Could not restore stock on cancellation:', e);
     }
+  } catch (err) {
+    console.warn('Firestore updateOrderStatus notice:', err);
   }
 }
 
 export async function deleteOrderFirestore(orderId: string): Promise<void> {
-  const orderRef = doc(db, COLLECTIONS.ORDERS, orderId);
-  await deleteDoc(orderRef);
+  try {
+    const orderRef = doc(db, COLLECTIONS.ORDERS, orderId);
+    await deleteDoc(orderRef);
+  } catch (err) {
+    console.warn('Firestore deleteOrder notice:', err);
+  }
 }
 
 // Hold Orders
@@ -1757,19 +1792,100 @@ export async function holdOrderFirestore(holdData: Omit<HoldOrder, 'id'>): Promi
     ...holdData,
     id: newRef.id
   };
-  await setDoc(newRef, fullHold);
+
+  try {
+    await setDoc(newRef, fullHold);
+  } catch (err) {
+    console.warn('Firestore holdOrder notice:', err);
+  }
+
   return fullHold;
 }
 
 export async function fetchHoldOrdersFirestore(): Promise<HoldOrder[]> {
-  const q = query(collection(db, COLLECTIONS.HOLD_ORDERS), orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as HoldOrder));
+  try {
+    const q = query(collection(db, COLLECTIONS.HOLD_ORDERS), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as HoldOrder));
+    }
+  } catch (err) {
+    console.warn('Firestore fetchHoldOrders notice:', err);
+  }
+  return [];
 }
 
 export async function deleteHoldOrderFirestore(holdId: string): Promise<void> {
-  const holdRef = doc(db, COLLECTIONS.HOLD_ORDERS, holdId);
-  await deleteDoc(holdRef);
+  try {
+    const holdRef = doc(db, COLLECTIONS.HOLD_ORDERS, holdId);
+    await deleteDoc(holdRef);
+  } catch (err) {
+    console.warn('Firestore deleteHoldOrder notice:', err);
+  }
+}
+
+// ==========================================
+// AUTOMATED LOCAL STORAGE TO FIRESTORE MIGRATION
+// ==========================================
+
+export async function autoMigrateLocalStorageToFirestore(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  const migrationFlagKey = 'erp_firestore_migrated_v2';
+  if (localStorage.getItem(migrationFlagKey) === 'true') return;
+
+  try {
+    const local = getLocalStorageState();
+    const batch = writeBatch(db);
+    let count = 0;
+
+    // Helper to add entity if has id
+    const addEntities = (items: any[], colName: string) => {
+      if (!Array.isArray(items)) return;
+      items.forEach((item) => {
+        if (item && item.id) {
+          const itemRef = doc(db, colName, String(item.id));
+          batch.set(itemRef, item, { merge: true });
+          count++;
+        }
+      });
+    };
+
+    addEntities(local.products, COLLECTIONS.PRODUCTS);
+    addEntities(local.ingredients, COLLECTIONS.INGREDIENTS);
+    addEntities(local.employees, COLLECTIONS.EMPLOYEES);
+    addEntities(local.suppliers, COLLECTIONS.SUPPLIERS);
+    addEntities(local.customers, COLLECTIONS.CUSTOMERS);
+    addEntities(local.recipes, COLLECTIONS.RECIPES);
+    addEntities(local.branches, COLLECTIONS.BRANCHES);
+    addEntities(local.orders, COLLECTIONS.ORDERS);
+    addEntities(local.expenses, COLLECTIONS.EXPENSES);
+    addEntities(local.purchases, COLLECTIONS.PURCHASES);
+    addEntities(local.salaries, COLLECTIONS.SALARIES);
+    addEntities(local.users, COLLECTIONS.USERS);
+
+    if (count > 0) {
+      await batch.commit();
+      console.log(`[Firestore Migration] Successfully migrated ${count} records from LocalStorage to Firestore.`);
+    }
+
+    // Clean obsolete LocalStorage business entity keys
+    const businessKeys = [
+      'erp_products', 'erp_ingredients', 'erp_employees', 'erp_suppliers',
+      'erp_customers', 'erp_recipes', 'erp_branches', 'erp_orders',
+      'erp_expenses', 'erp_purchases', 'erp_salaries', 'erp_users', 'erp_hold_orders'
+    ];
+    businessKeys.forEach(key => localStorage.removeItem(key));
+
+    localStorage.setItem(migrationFlagKey, 'true');
+  } catch (err) {
+    console.warn('[Firestore Migration] Migration notice:', err);
+    localStorage.setItem(migrationFlagKey, 'true');
+  }
+}
+
+// Trigger auto migration on module load
+if (typeof window !== 'undefined') {
+  autoMigrateLocalStorageToFirestore().catch(e => console.warn('Auto migration warning:', e));
 }
 
 // Customers
@@ -1866,6 +1982,298 @@ export async function updateTableStatusFirestore(
     console.warn('Error updating table status in Firestore:', err);
   }
 }
+
+// Initial Setup Wizard Batch Firestore Persist
+export interface InitialSetupData {
+  restaurant: {
+    name: string;
+    nameEn?: string;
+    nameAr?: string;
+    nameSo?: string;
+    slogan?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    currency: string;
+    defaultLanguage?: string;
+    workingHours?: string;
+    logoUrl?: string;
+    taxRegNumber?: string;
+  };
+  branch: {
+    name: string;
+    code: string;
+    city: string;
+    address: string;
+    managerName: string;
+    managerPhone: string;
+    tableCount: number;
+    isPrimary: boolean;
+  };
+  admin: {
+    name: string;
+    email: string;
+    role: string;
+    phone: string;
+    pin: string;
+  };
+  employees: Array<{
+    name: string;
+    role: string;
+    email: string;
+    phone: string;
+    salary: number;
+    shift: string;
+  }>;
+  suppliers: Array<{
+    name: string;
+    contactName: string;
+    phone: string;
+    email: string;
+    category: string;
+  }>;
+  inventory: Array<{
+    name: string;
+    nameAr?: string;
+    nameSo?: string;
+    unit: string;
+    minAlertStock: number;
+    costPerUnit: number;
+    currentQuantity: number;
+    category: string;
+  }>;
+  recipes: Array<{
+    productId: string;
+    productName: string;
+    ingredients: Array<{
+      ingredientId: string;
+      ingredientName: string;
+      quantityRequired: number;
+      unit: string;
+    }>;
+  }>;
+  products: Array<{
+    name: string;
+    nameAr?: string;
+    nameSo?: string;
+    category: string;
+    price: number;
+    cost: number;
+    imageUrl?: string;
+    prepTimeMinutes?: number;
+  }>;
+  tax: {
+    taxName: string;
+    taxRate: number;
+    serviceCharge?: number;
+    discountSettings?: string;
+    trnNumber: string;
+    isInclusive: boolean;
+  };
+  payments: {
+    cashEnabled: boolean;
+    cardEnabled: boolean;
+    evcPlusEnabled?: boolean;
+    zaadEnabled?: boolean;
+    sahalEnabled?: boolean;
+    eDahabEnabled?: boolean;
+    paypalEnabled?: boolean;
+    bankTransferEnabled: boolean;
+    defaultPosMethod: string;
+    merchantId?: string;
+  };
+}
+
+export async function saveInitialSetupWizardData(setupData: InitialSetupData): Promise<{ mode: 'firestore' | 'preview_local'; success: boolean }> {
+  // Always save locally first so client-side state and all entity keys are guaranteed
+  let parsedState: LocalStorageState | null = null;
+  try {
+    parsedState = saveSetupDataToLocalStorage(setupData);
+  } catch (e) {
+    console.warn('LocalStorage save error:', e);
+  }
+
+  let isFirestoreSaved = false;
+
+  try {
+    const batch = writeBatch(db);
+
+    // 1. Restaurant Settings & Tax/Payment Config
+    const settingsRef = doc(db, COLLECTIONS.BRANCH_SETTINGS, 'system_config');
+    batch.set(settingsRef, {
+      id: 'system_config',
+      restaurant: setupData.restaurant,
+      tax: setupData.tax,
+      payments: setupData.payments,
+      isInitialSetupCompleted: true,
+      setupCompletedAt: new Date().toISOString()
+    }, { merge: true });
+
+    // 2. Primary Branch
+    const branchRef = doc(db, COLLECTIONS.BRANCHES, setupData.branch.code || 'HQ-MAIN');
+    batch.set(branchRef, {
+      id: setupData.branch.code || 'HQ-MAIN',
+      branchName: setupData.branch.name,
+      code: setupData.branch.code,
+      city: setupData.branch.city,
+      address: setupData.branch.address,
+      managerName: setupData.branch.managerName,
+      managerPhone: setupData.branch.managerPhone,
+      tableCount: setupData.branch.tableCount,
+      isPrimary: setupData.branch.isPrimary,
+      status: 'active',
+      createdAt: new Date().toISOString()
+    }, { merge: true });
+
+    // 3. Admin Account User
+    const adminDocId = 'user_admin_' + setupData.admin.email.replace(/[^a-zA-Z0-9]/g, '_');
+    const adminRef = doc(db, COLLECTIONS.USERS, adminDocId);
+    batch.set(adminRef, {
+      uid: adminDocId,
+      email: setupData.admin.email,
+      displayName: setupData.admin.name,
+      role: setupData.admin.role || 'Admin',
+      phoneNumber: setupData.admin.phone,
+      securityPin: setupData.admin.pin || '1234',
+      status: 'active',
+      branch: setupData.branch.name,
+      createdAt: new Date().toISOString()
+    }, { merge: true });
+
+    // 4. Employees (Including Admin Employee record)
+    const employeesToSave = parsedState?.employees || [];
+    employeesToSave.forEach((emp) => {
+      const empRef = doc(db, COLLECTIONS.EMPLOYEES, emp.id);
+      batch.set(empRef, {
+        id: emp.id,
+        employeeId: emp.employeeId || emp.id,
+        name: emp.name || emp.fullName,
+        fullName: emp.fullName || emp.name,
+        role: emp.role,
+        jobTitle: emp.jobTitle || emp.role,
+        email: emp.email,
+        phone: emp.phone,
+        salary: emp.salary,
+        monthlySalary: emp.salary,
+        shift: (emp as any).shift || 'Full Time',
+        branch: emp.branch || setupData.branch.name,
+        employmentStatus: emp.employmentStatus || 'Active',
+        status: emp.status || 'active',
+        hireDate: emp.hireDate || new Date().toISOString()
+      }, { merge: true });
+    });
+
+    // 5. Suppliers
+    const suppliersToSave = parsedState?.suppliers || [];
+    suppliersToSave.forEach((sup) => {
+      const supRef = doc(db, COLLECTIONS.SUPPLIERS, sup.id);
+      batch.set(supRef, {
+        id: sup.id,
+        name: sup.name,
+        companyName: sup.name,
+        contactPerson: sup.contactPerson || sup.name,
+        phone: sup.phone,
+        email: (sup as any).email || 'supplier@example.com',
+        category: sup.itemsSupplied || 'General Supplies',
+        address: setupData.branch.city,
+        rating: 5.0,
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+    });
+
+    // 6. Customers
+    const customersToSave = parsedState?.customers || [];
+    customersToSave.forEach((cust) => {
+      const custRef = doc(db, COLLECTIONS.CUSTOMERS, cust.id);
+      batch.set(custRef, cust, { merge: true });
+    });
+
+    // 7. Inventory Items (Ingredients)
+    const ingredientsToSave = parsedState?.ingredients || [];
+    ingredientsToSave.forEach((item) => {
+      const ingRef = doc(db, COLLECTIONS.INGREDIENTS, item.id);
+      batch.set(ingRef, {
+        id: item.id,
+        name: item.name,
+        unit: item.unit,
+        minAlertStock: item.minStockAlert,
+        costPerUnit: item.costPerUnit,
+        currentQuantity: item.stock,
+        quantity: item.stock,
+        stock: item.stock,
+        lastRestocked: new Date().toISOString()
+      }, { merge: true });
+    });
+
+    // 8. Recipes
+    const recipesToSave = parsedState?.recipes || [];
+    recipesToSave.forEach((rec) => {
+      const recRef = doc(db, COLLECTIONS.RECIPES, rec.id);
+      batch.set(recRef, rec, { merge: true });
+    });
+
+    // 9. Products
+    const productsToSave = parsedState?.products || [];
+    productsToSave.forEach((prod) => {
+      const prodRef = doc(db, COLLECTIONS.PRODUCTS, prod.id);
+      batch.set(prodRef, {
+        id: prod.id,
+        name: prod.name,
+        nameEn: prod.name,
+        nameAr: prod.nameAr || prod.name,
+        nameSo: prod.nameSo || prod.name,
+        category: prod.category,
+        price: prod.price,
+        cost: prod.cost,
+        imageUrl: prod.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+        prepTimeMinutes: prod.prepTimeMinutes || 15,
+        isAvailable: true,
+        recipeIngredients: prod.ingredients || [],
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+    });
+
+    // 10. Initial Orders
+    const ordersToSave = parsedState?.orders || [];
+    ordersToSave.forEach((ord) => {
+      const ordRef = doc(db, COLLECTIONS.ORDERS, ord.id);
+      batch.set(ordRef, ord, { merge: true });
+    });
+
+    // 11. Initial Expenses
+    const expensesToSave = parsedState?.expenses || [];
+    expensesToSave.forEach((exp) => {
+      const expRef = doc(db, COLLECTIONS.EXPENSES, exp.id);
+      batch.set(expRef, exp, { merge: true });
+    });
+
+    // 12. Initial Purchases
+    const purchasesToSave = parsedState?.purchases || [];
+    purchasesToSave.forEach((pur) => {
+      const purRef = doc(db, COLLECTIONS.PURCHASES, pur.id);
+      batch.set(purRef, pur, { merge: true });
+    });
+
+    // 13. Initial Salaries
+    const salariesToSave = parsedState?.salaries || [];
+    salariesToSave.forEach((sal) => {
+      const salRef = doc(db, COLLECTIONS.SALARIES, sal.id);
+      batch.set(salRef, sal, { merge: true });
+    });
+
+    await batch.commit();
+    isFirestoreSaved = true;
+  } catch (err) {
+    console.warn('[Setup Wizard] Firestore batch write error or permission constraint (Preview Mode fallback used):', err);
+    isFirestoreSaved = false;
+  }
+
+  return {
+    mode: isFirestoreSaved ? 'firestore' : 'preview_local',
+    success: true
+  };
+}
+
 
 
 

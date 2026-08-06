@@ -66,7 +66,10 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
         snap.forEach((d) => items.push({ id: d.id, ...d.data() } as InventoryItem));
         callback(items);
       },
-      (err) => handleFirestoreError(err, OperationType.GET, COLLECTIONS.INVENTORY)
+      (err) => {
+        handleFirestoreError(err, OperationType.GET, COLLECTIONS.INVENTORY);
+        callback([]);
+      }
     );
   }
 
@@ -376,7 +379,10 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
         snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Supplier));
         callback(list);
       },
-      (err) => handleFirestoreError(err, OperationType.GET, COLLECTIONS.SUPPLIERS)
+      (err) => {
+        handleFirestoreError(err, OperationType.GET, COLLECTIONS.SUPPLIERS);
+        callback([]);
+      }
     );
   }
 

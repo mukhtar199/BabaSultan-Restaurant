@@ -39,7 +39,7 @@ interface POSViewProps {
 }
 
 export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) => {
-  const { user, role } = useAuth();
+  const { user, role, t, language } = useAuth();
 
   // Search & Category Filters
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -329,10 +329,10 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
         <div>
           <h2 className="text-2xl font-extrabold text-white flex items-center gap-2">
             <ShoppingBag className="w-7 h-7 text-emerald-400" />
-            Restaurant POS Terminal
+            {t.pos.title}
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time cashier checkout terminal connected directly to Firestore catalog & inventory
+            {t.pos.subtitle}
           </p>
         </div>
 
@@ -343,13 +343,13 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
             className="px-4 py-2 rounded-2xl bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 border border-amber-500/30 text-xs font-bold transition cursor-pointer flex items-center gap-2 shadow-md"
           >
             <PauseCircle className="w-4 h-4" />
-            <span>Held Orders ({heldOrdersCount})</span>
+            <span>{t.pos.heldOrders} ({heldOrdersCount})</span>
           </button>
 
           {/* Cashier Badge */}
           <div className="flex items-center gap-2 bg-slate-950 px-3.5 py-2 rounded-2xl border border-slate-800 text-xs text-slate-300">
             <User className="w-4 h-4 text-emerald-400" />
-            <span>Cashier: <strong className="text-white">{user?.displayName || 'Cashier'}</strong></span>
+            <span>{t.pos.cashier}: <strong className="text-white">{user?.displayName || t.pos.cashier}</strong></span>
           </div>
         </div>
       </div>
@@ -366,7 +366,7 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
-                placeholder="Search dish (EN / AR / SO), SKU, or barcode..."
+                placeholder={t.pos.searchPlaceholder}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
@@ -384,7 +384,7 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
                       : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   }`}
                 >
-                  {cat}
+                  {cat === 'All' ? t.pos.allCategories : cat}
                 </button>
               ))}
             </div>
@@ -421,14 +421,14 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
                           ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                           : 'bg-emerald-500/10 text-emerald-400'
                       }`}>
-                        {isOutOfStock ? 'Out of Stock' : `${p.stock} left`}
+                        {isOutOfStock ? t.pos.outOfStock : `${p.stock} ${t.pos.leftInStock}`}
                       </span>
                     </div>
 
                     <h4 className="text-xs font-bold text-white group-hover:text-emerald-400 transition line-clamp-1">
-                      {p.name}
+                      {language === 'ar' && p.nameAr ? p.nameAr : language === 'so' && p.nameSo ? p.nameSo : p.name}
                     </h4>
-                    {p.nameAr && <p className="text-[10px] text-slate-400 line-clamp-1">{p.nameAr}</p>}
+                    {p.nameAr && language !== 'ar' && <p className="text-[10px] text-slate-400 line-clamp-1">{p.nameAr}</p>}
                   </div>
 
                   <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-800/60">
@@ -468,32 +468,32 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-emerald-400" />
-                Current Order Cart
+                {t.pos.currentCart}
               </h3>
               <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full font-bold border border-emerald-500/20">
-                {cart.length} {cart.length === 1 ? 'item' : 'items'}
+                {cart.length} {t.pos.itemsCount}
               </span>
             </div>
 
             {/* Order Types Selector */}
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-1 bg-slate-950 p-1 rounded-2xl border border-slate-800">
               {[
-                { id: 'dine_in', label: 'Dine In' },
-                { id: 'takeaway', label: 'Takeout' },
-                { id: 'delivery', label: 'Delivery' },
-                { id: 'online', label: 'Online' },
-                { id: 'reservation', label: 'Reserve' }
-              ].map(t => (
+                { id: 'dine_in', label: t.pos.dineIn },
+                { id: 'takeaway', label: t.pos.takeout },
+                { id: 'delivery', label: t.pos.delivery },
+                { id: 'online', label: t.pos.online },
+                { id: 'reservation', label: t.pos.reserve }
+              ].map(type => (
                 <button
-                  key={t.id}
-                  onClick={() => setOrderType(t.id as OrderType)}
+                  key={type.id}
+                  onClick={() => setOrderType(type.id as OrderType)}
                   className={`py-1.5 rounded-xl text-[10px] font-bold transition cursor-pointer ${
-                    orderType === t.id
+                    orderType === type.id
                       ? 'bg-emerald-500 text-slate-950 shadow-md'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  {t.label}
+                  {type.label}
                 </button>
               ))}
             </div>
@@ -506,9 +506,9 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
                 className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 hover:border-slate-700 text-left transition cursor-pointer flex items-center justify-between group"
               >
                 <div className="truncate">
-                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Customer</span>
+                  <span className="text-[10px] text-slate-500 block uppercase font-bold">{t.pos.customerLabel}</span>
                   <span className="text-white font-bold truncate block group-hover:text-emerald-400">
-                    {selectedCustomer ? selectedCustomer.name : 'Walk-in Guest'}
+                    {selectedCustomer ? selectedCustomer.name : t.pos.walkInGuest}
                   </span>
                 </div>
                 <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -518,14 +518,14 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
               {orderType === 'dine_in' ? (
                 <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Table</span>
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">{t.pos.tableLabel}</span>
                     <select
                       value={tableNumber}
                       onChange={e => setTableNumber(e.target.value)}
                       className="bg-transparent text-emerald-400 font-extrabold focus:outline-none text-xs"
                     >
-                      {['T-01', 'T-02', 'T-03', 'T-04', 'T-05', 'VIP-1', 'VIP-2', 'Patio-1'].map(t => (
-                        <option key={t} value={t} className="bg-slate-900 text-white">{t}</option>
+                      {['T-01', 'T-02', 'T-03', 'T-04', 'T-05', 'VIP-1', 'VIP-2', 'Patio-1'].map(tbl => (
+                        <option key={tbl} value={tbl} className="bg-slate-900 text-white">{tbl}</option>
                       ))}
                     </select>
                   </div>
@@ -533,7 +533,7 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
                 </div>
               ) : (
                 <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 flex items-center justify-between opacity-60">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase">No Table Needed</span>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">{t.pos.noTableNeeded}</span>
                 </div>
               )}
             </div>
@@ -543,8 +543,8 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
               {cart.length === 0 ? (
                 <div className="py-12 text-center text-slate-500 space-y-2">
                   <Package className="w-10 h-10 mx-auto text-slate-700" />
-                  <p className="text-xs">Cart is currently empty</p>
-                  <p className="text-[10px] text-slate-600">Select dishes from the catalog to build an order</p>
+                  <p className="text-xs">{t.pos.cartEmpty}</p>
+                  <p className="text-[10px] text-slate-600">{t.pos.selectDishes}</p>
                 </div>
               ) : (
                 cart.map((item, idx) => (
@@ -602,7 +602,7 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
               <div className="space-y-2 pt-2 border-t border-slate-800">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400 flex items-center gap-1 font-semibold">
-                    <Tag className="w-3.5 h-3.5 text-amber-400" /> Apply Discount:
+                    <Tag className="w-3.5 h-3.5 text-amber-400" /> {t.pos.applyDiscount}:
                   </span>
                   <div className="flex items-center gap-1">
                     <input
@@ -631,21 +631,21 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
           <div className="pt-3 border-t border-slate-800 space-y-3">
             <div className="space-y-1.5 text-xs text-slate-400">
               <div className="flex justify-between">
-                <span>Subtotal</span>
+                <span>{t.pos.subtotal}</span>
                 <span className="text-white font-medium">${cartTotals.subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>VAT ({taxRatePercent}%)</span>
+                <span>{t.pos.vat} ({taxRatePercent}%)</span>
                 <span className="text-white font-medium">${cartTotals.tax.toFixed(2)}</span>
               </div>
               {cartTotals.discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-400 font-bold">
-                  <span>Discount</span>
+                  <span>{t.pos.discount}</span>
                   <span>-${cartTotals.discountAmount.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between text-base font-extrabold text-white pt-2 border-t border-slate-800">
-                <span>Grand Total</span>
+                <span>{t.pos.grandTotal}</span>
                 <span className="text-emerald-400">${cartTotals.grandTotal.toFixed(2)}</span>
               </div>
             </div>
@@ -658,7 +658,7 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
                 className="bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-30 border border-amber-500/30 text-amber-400 font-bold py-3 rounded-2xl transition cursor-pointer text-xs flex items-center justify-center gap-1"
               >
                 <Bookmark className="w-4 h-4" />
-                <span>Hold</span>
+                <span>{t.pos.holdButton}</span>
               </button>
 
               <button
@@ -667,7 +667,7 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
                 className="col-span-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-extrabold py-3 rounded-2xl transition cursor-pointer shadow-lg shadow-emerald-500/20 text-xs flex items-center justify-center gap-2"
               >
                 <CreditCard className="w-4 h-4" />
-                <span>Pay (${cartTotals.grandTotal.toFixed(2)})</span>
+                <span>{t.pos.payButton} (${cartTotals.grandTotal.toFixed(2)})</span>
               </button>
             </div>
           </div>

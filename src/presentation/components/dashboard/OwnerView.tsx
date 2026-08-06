@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { KPICard } from './KPICard';
 import {
   SalesTrendChart,
@@ -55,6 +56,9 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
   accounts,
   onNavigateToTab
 }) => {
+  const { t } = useAuth();
+  const d: Record<string, any> = t.dashboard || {};
+
   // 1. Financial Calculations
   const todayIso = new Date().toISOString().split('T')[0];
 
@@ -100,15 +104,15 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="bg-emerald-500/10 text-emerald-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-500/20 uppercase tracking-widest">
-              Executive Suite
+              {d.executiveSuite || 'Executive Suite'}
             </span>
-            <span className="text-xs text-slate-400">• Full Enterprise Visibility</span>
+            <span className="text-xs text-slate-400">• {d.enterpriseVisibility || 'Full Enterprise Visibility'}</span>
           </div>
           <h2 className="text-2xl font-black text-white flex items-center gap-2">
-            Owner & Executive Dashboard
+            {d.ownerTitle || 'Owner & Executive Dashboard'}
           </h2>
           <p className="text-xs text-slate-400 max-w-xl">
-            Real-time multi-branch financial intelligence, profit margins, stock valuation, and operational performance.
+            {d.ownerSubtitle || 'Real-time multi-branch financial intelligence, profit margins, stock valuation, and operational performance.'}
           </p>
         </div>
 
@@ -119,13 +123,13 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-white">Business Health Score</span>
+              <span className="text-xs font-bold text-white">{d.healthScore || 'Business Health Score'}</span>
               <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full">
                 {healthScore}/100
               </span>
             </div>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              Net Profit Margin: <strong className="text-emerald-400">{marginPct.toFixed(1)}%</strong> | Food COGS: <strong className="text-amber-400">{cogsPct.toFixed(1)}%</strong>
+              {d.netProfitMargin || 'Net Profit Margin'}: <strong className="text-emerald-400">{marginPct.toFixed(1)}%</strong> | {d.foodCogs || 'Food COGS'}: <strong className="text-amber-400">{cogsPct.toFixed(1)}%</strong>
             </p>
           </div>
         </div>
@@ -135,7 +139,7 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <KPICard
-          title="Total Sales"
+          title={d.totalSales || 'Total Sales'}
           value={`$${totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           change={14.8}
           changeLabel="vs last month"
@@ -144,7 +148,7 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
         />
 
         <KPICard
-          title="Today's Revenue"
+          title={d.todayRevenue || "Today's Revenue"}
           value={`$${todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           sublabel={`${todayOrders.length} orders fulfilled today`}
           icon={Activity}
@@ -154,7 +158,7 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
         />
 
         <KPICard
-          title="Today's Profit"
+          title={d.todayProfit || "Today's Profit"}
           value={`$${todayProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           sublabel={`COGS: $${todayCogs.toFixed(0)} | Exp: $${todayExpenses.toFixed(0)}`}
           icon={TrendingUp}
@@ -164,7 +168,7 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
         />
 
         <KPICard
-          title="Monthly Profit"
+          title={d.monthlyProfit || 'Monthly Profit'}
           value={`$${monthlyProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           change={18.2}
           icon={Award}
@@ -172,7 +176,7 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
         />
 
         <KPICard
-          title="Total Expenses"
+          title={d.totalExpenses || 'Total Expenses'}
           value={`$${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           sublabel={`${expenses.length} operating expense logs`}
           icon={BarChart3}
@@ -180,7 +184,7 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
         />
 
         <KPICard
-          title="Cash Flow & Liquidity"
+          title={d.cashFlow || 'Cash Flow & Liquidity'}
           value={`$${totalCashFlow.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           sublabel={`Cash: $${cashAccount.toFixed(0)} | Bank: $${bankAccount.toFixed(0)}`}
           icon={Wallet}
@@ -188,7 +192,7 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
         />
 
         <KPICard
-          title="Total Orders"
+          title={d.totalOrders || 'Total Orders'}
           value={totalOrdersCount}
           sublabel="All-time completed sales"
           icon={ShoppingBag}
@@ -196,7 +200,7 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
         />
 
         <KPICard
-          title="Customer Growth"
+          title={d.customerGrowth || 'Customer Growth'}
           value="+24.6%"
           sublabel="88.4% Customer Retention Rate"
           icon={Users}
@@ -224,31 +228,31 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Boxes className="w-5 h-5 text-amber-400" />
-              Inventory Status Overview
+              {d.inventoryStatus || 'Inventory Status Overview'}
             </h3>
             {onNavigateToTab && (
               <button
                 onClick={() => onNavigateToTab('inventory')}
                 className="text-xs text-amber-400 hover:underline font-bold"
               >
-                Manage Inventory →
+                {d.manageInventory || 'Manage Inventory →'}
               </button>
             )}
           </div>
 
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block uppercase font-bold">Total Items</span>
+              <span className="text-[10px] text-slate-400 block uppercase font-bold">{d.totalItems || 'Total Items'}</span>
               <span className="text-lg font-black text-white">{products.length + ingredients.length}</span>
             </div>
             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-              <span className="text-[10px] text-slate-400 block uppercase font-bold">Healthy Stock</span>
+              <span className="text-[10px] text-slate-400 block uppercase font-bold">{d.healthyStock || 'Healthy Stock'}</span>
               <span className="text-lg font-black text-emerald-400">
                 {(products.length + ingredients.length) - totalLowStock}
               </span>
             </div>
             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-              <span className="text-[10px] text-amber-400 block uppercase font-bold">Low Stock Alerts</span>
+              <span className="text-[10px] text-amber-400 block uppercase font-bold">{d.lowStockAlerts || 'Low Stock Alerts'}</span>
               <span className="text-lg font-black text-amber-400">{totalLowStock}</span>
             </div>
           </div>
@@ -277,14 +281,14 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Users className="w-5 h-5 text-teal-400" />
-              Employee Performance Leaderboard
+              {d.employeeLeaderboard || 'Employee Performance Leaderboard'}
             </h3>
             {onNavigateToTab && (
               <button
                 onClick={() => onNavigateToTab('staff')}
                 className="text-xs text-teal-400 hover:underline font-bold"
               >
-                Staff Portal →
+                {d.staffPortal || 'Staff Portal →'}
               </button>
             )}
           </div>

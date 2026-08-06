@@ -100,13 +100,20 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
   initialPurchases = [],
   language: initialLang
 }) => {
-  const { language: authLang } = useAuth();
+  const { language: authLang, setLanguage } = useAuth();
   const activeLang = (initialLang || authLang || 'en') as Language;
   const [currentLang, setCurrentLang] = useState<Language>(activeLang);
 
   useEffect(() => {
     setCurrentLang(activeLang);
   }, [activeLang]);
+
+  const handleLanguageChange = (lang: Language) => {
+    setCurrentLang(lang);
+    if (setLanguage) {
+      setLanguage(lang as any);
+    }
+  };
   const [activeTab, setActiveTab] = useState<
     'executive' | 'accountant' | 'operations' | 'sales' | 'inventory' | 'customer' | 'forecast' | 'alerts' | 'chat'
   >('executive');
@@ -386,7 +393,7 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
             {/* Multi-language Selector */}
             <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-2xl p-1">
               <button
-                onClick={() => setCurrentLang('en')}
+                onClick={() => handleLanguageChange('en')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-xl transition ${
                   currentLang === 'en' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
@@ -394,7 +401,7 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
                 English
               </button>
               <button
-                onClick={() => setCurrentLang('ar')}
+                onClick={() => handleLanguageChange('ar')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-xl transition ${
                   currentLang === 'ar' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
                 }`}
@@ -402,7 +409,7 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
                 العربية
               </button>
               <button
-                onClick={() => setCurrentLang('so')}
+                onClick={() => handleLanguageChange('so')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-xl transition ${
                   currentLang === 'so' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
                 }`}

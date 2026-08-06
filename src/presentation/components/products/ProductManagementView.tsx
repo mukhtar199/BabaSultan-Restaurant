@@ -34,7 +34,18 @@ import {
 } from 'lucide-react';
 
 export const ProductManagementView: React.FC = () => {
-  const { user, permissions, role, language } = useAuth();
+  const { user, permissions, role, language, t } = useAuth();
+  
+  // Localized Labels
+  const titleText = language === 'ar' ? 'إدارة المنتجات وقائمة الطعام' : language === 'so' ? 'Maamulka Cuntada & Menu-ga' : 'Product & Restaurant Menu Management';
+  const subtitleText = language === 'ar' ? 'إدارة الوجبات والتصنيفات والأسعار والخيارات المتعددة للغات' : language === 'so' ? 'Maamul cuntada, noocyada, qiimaha iyo xiriirinta inventory-ga' : 'Manage multi-lingual dishes, categories, pricing, options & recipe inventory connections';
+  const manageCategoriesText = language === 'ar' ? 'إدارة التصنيفات' : language === 'so' ? 'Maamul Noocyada' : 'Manage Categories';
+  const productOptionsText = language === 'ar' ? 'خيارات الوجبات' : language === 'so' ? 'Xulashooyinka Cuntada' : 'Product Options';
+  const addProductText = language === 'ar' ? 'إضافة وجبة جديدة' : language === 'so' ? 'Kudar Cunto Cusub' : 'Add New Product';
+  const totalProductsText = language === 'ar' ? 'إجمالي المنتجات' : language === 'so' ? 'Warta Cuntooyinka' : 'Total Products';
+  const activeMenuItemsText = language === 'ar' ? 'الوجبات النشطة' : language === 'so' ? 'Cuntooyinka Aktiv-ka' : 'Active Menu Items';
+  const lowStockAlertsText = language === 'ar' ? 'تنبيهات المخزون' : language === 'so' ? 'Digiinaha Stock-ka' : 'Low Stock Alerts';
+  const featuredSpecialsText = language === 'ar' ? 'العروض المميزة' : language === 'so' ? 'Cuntooyinka Gaarka Ah' : 'Featured Specials';
   
   // Real-time Firestore State
   const [products, setProducts] = useState<Product[]>([]);
@@ -203,9 +214,9 @@ export const ProductManagementView: React.FC = () => {
             <Sparkles className="w-4 h-4" />
             <span>Phase 4 • Restaurant Menu & Catalog Engine</span>
           </div>
-          <h1 className="text-xl font-extrabold text-white">Product & Restaurant Menu Management</h1>
+          <h1 className="text-xl font-extrabold text-white">{titleText}</h1>
           <p className="text-xs text-slate-400 mt-1">
-            Manage multi-lingual dishes, categories, pricing, options & recipe inventory connections
+            {subtitleText}
           </p>
         </div>
 
@@ -215,7 +226,7 @@ export const ProductManagementView: React.FC = () => {
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-2xl border border-slate-700 flex items-center gap-2 transition"
           >
             <Layers className="w-4 h-4 text-emerald-400" />
-            <span>Manage Categories</span>
+            <span>{manageCategoriesText}</span>
           </button>
 
           <button
@@ -223,7 +234,7 @@ export const ProductManagementView: React.FC = () => {
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-2xl border border-slate-700 flex items-center gap-2 transition"
           >
             <Sliders className="w-4 h-4 text-emerald-400" />
-            <span>Product Options</span>
+            <span>{productOptionsText}</span>
           </button>
 
           {canManage && (
@@ -232,7 +243,7 @@ export const ProductManagementView: React.FC = () => {
               className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold rounded-2xl shadow-lg shadow-emerald-500/10 flex items-center gap-2 transition"
             >
               <Plus className="w-4 h-4" />
-              <span>Add New Product</span>
+              <span>{addProductText}</span>
             </button>
           )}
         </div>
@@ -245,7 +256,7 @@ export const ProductManagementView: React.FC = () => {
             <Tag className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Products</span>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">{totalProductsText}</span>
             <span className="text-2xl font-extrabold text-white">{totalProducts}</span>
           </div>
         </div>
@@ -255,7 +266,7 @@ export const ProductManagementView: React.FC = () => {
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Active Menu Items</span>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">{activeMenuItemsText}</span>
             <span className="text-2xl font-extrabold text-emerald-400">{activeProductsCount}</span>
           </div>
         </div>
@@ -265,7 +276,7 @@ export const ProductManagementView: React.FC = () => {
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Low Stock Alerts</span>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">{lowStockAlertsText}</span>
             <span className="text-2xl font-extrabold text-amber-400">{lowStockCount}</span>
           </div>
         </div>
@@ -275,7 +286,7 @@ export const ProductManagementView: React.FC = () => {
             <Flame className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Featured Specials</span>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">{featuredSpecialsText}</span>
             <span className="text-2xl font-extrabold text-white">{featuredCount}</span>
           </div>
         </div>

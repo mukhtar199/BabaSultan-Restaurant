@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { KPICard } from './KPICard';
 import { Order, Product, Ingredient, CustomerFeedback } from '../../../types';
 import {
@@ -28,6 +29,9 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
   ingredients,
   onNavigateToTab
 }) => {
+  const { t } = useAuth();
+  const d: Record<string, any> = t.dashboard || {};
+
   const todayIso = new Date().toISOString().split('T')[0];
 
   // 1. Metrics Calculations
@@ -75,15 +79,15 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="bg-teal-500/10 text-teal-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-teal-500/20 uppercase tracking-wider">
-              Shift Operations
+              {d.shiftOperations || 'Shift Operations'}
             </span>
-            <span className="text-xs text-slate-400">• Manager Control Room</span>
+            <span className="text-xs text-slate-400">• {d.managerControlRoom || 'Manager Control Room'}</span>
           </div>
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            Restaurant Operations & Manager Dashboard
+            {d.managerTitle || 'Restaurant Operations & Manager Dashboard'}
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Real-time kitchen order queue, line chef station load, delivery status, staff attendance, and stock alerts.
+            {d.managerSubtitle || 'Real-time kitchen order queue, line chef station load, delivery status, staff attendance, and stock alerts.'}
           </p>
         </div>
 
@@ -92,7 +96,7 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
             onClick={() => onNavigateToTab('pos')}
             className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg cursor-pointer"
           >
-            <Plus className="w-4 h-4" /> Open POS Terminal
+            <Plus className="w-4 h-4" /> {d.openPos || 'Open POS Terminal'}
           </button>
         )}
       </div>
@@ -101,7 +105,7 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <KPICard
-          title="Active Orders Queue"
+          title={d.activeOrdersQueue || 'Active Orders Queue'}
           value={activeOrders.length}
           sublabel="Pending or In Preparation"
           icon={Clock}
@@ -135,7 +139,7 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
         />
 
         <KPICard
-          title="Low Stock Alerts"
+          title={d.lowStockAlerts || 'Low Stock Alerts'}
           value={`${totalStockAlerts} Items`}
           sublabel={totalStockAlerts > 0 ? 'Urgent reorder required' : 'Stock levels optimal'}
           icon={AlertTriangle}
@@ -145,7 +149,7 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
         />
 
         <KPICard
-          title="Daily Sales Today"
+          title={d.dailyRevenue || 'Daily Revenue'}
           value={`$${dailySales.toFixed(2)}`}
           sublabel={`${todayOrders.length} orders settled`}
           icon={DollarSign}

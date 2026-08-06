@@ -31,45 +31,50 @@ export class HRMRepositoryImpl implements IHRMRepository {
   // ==========================================
 
   async getAllEmployees(): Promise<Employee[]> {
-    const snap = await getDocs(collection(db, COLLECTIONS.EMPLOYEES));
-    const employees: Employee[] = snap.docs.map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        employeeId: data.employeeId || d.id,
-        fullName: data.fullName || data.name || 'Unnamed Employee',
-        name: data.name || data.fullName || 'Unnamed Employee',
-        photo: data.photo || data.photoUrl || '',
-        nationalIdOrPassport: data.nationalIdOrPassport || data.nationalId || '',
-        phone: data.phone || '',
-        email: data.email || '',
-        address: data.address || '',
-        dateOfBirth: data.dateOfBirth || '1995-01-01',
-        gender: data.gender || 'Male',
-        nationality: data.nationality || 'Somali',
-        hireDate: data.hireDate || new Date().toISOString().split('T')[0],
-        jobTitle: data.jobTitle || data.role || 'Staff Member',
-        department: data.department || 'General Operations',
-        branch: data.branch || 'Main Flagship Branch',
-        employmentStatus: data.employmentStatus || 'Active',
-        status: data.status || (data.employmentStatus === 'Active' ? 'active' : 'on_leave'),
-        role: data.role || 'Employee',
-        salary: Number(data.salary) || 500,
-        totalSales: Number(data.totalSales) || 0,
-        ordersCount: Number(data.ordersCount) || 0,
-        bankAccount: data.bankAccount,
-        emergencyContact: data.emergencyContact || {
-          name: 'Emergency Contact',
-          relationship: 'Family',
-          phone: data.phone || '+252 61 000 0000'
-        },
-        notes: data.notes || '',
-        createdAt: data.createdAt || new Date().toISOString(),
-        updatedAt: data.updatedAt
-      } as Employee;
-    });
+    try {
+      const snap = await getDocs(collection(db, COLLECTIONS.EMPLOYEES));
+      const employees: Employee[] = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          employeeId: data.employeeId || d.id,
+          fullName: data.fullName || data.name || 'Unnamed Employee',
+          name: data.name || data.fullName || 'Unnamed Employee',
+          photo: data.photo || data.photoUrl || '',
+          nationalIdOrPassport: data.nationalIdOrPassport || data.nationalId || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          address: data.address || '',
+          dateOfBirth: data.dateOfBirth || '1995-01-01',
+          gender: data.gender || 'Male',
+          nationality: data.nationality || 'Somali',
+          hireDate: data.hireDate || new Date().toISOString().split('T')[0],
+          jobTitle: data.jobTitle || data.role || 'Staff Member',
+          department: data.department || 'General Operations',
+          branch: data.branch || 'Main Flagship Branch',
+          employmentStatus: data.employmentStatus || 'Active',
+          status: data.status || (data.employmentStatus === 'Active' ? 'active' : 'on_leave'),
+          role: data.role || 'Employee',
+          salary: Number(data.salary) || 500,
+          totalSales: Number(data.totalSales) || 0,
+          ordersCount: Number(data.ordersCount) || 0,
+          bankAccount: data.bankAccount,
+          emergencyContact: data.emergencyContact || {
+            name: 'Emergency Contact',
+            relationship: 'Family',
+            phone: data.phone || '+252 61 000 0000'
+          },
+          notes: data.notes || '',
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt
+        } as Employee;
+      });
 
-    return employees.sort((a, b) => a.fullName.localeCompare(b.fullName));
+      return employees.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    } catch (err) {
+      console.warn('Note fetching employees from Firestore:', err);
+      return [];
+    }
   }
 
   async getEmployeeById(id: string): Promise<Employee | null> {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { KPICard } from './KPICard';
 import { ProfitExpenseChart, ExpensePieChart } from './DashboardCharts';
 import { Order, Expense, Purchase, Supplier, CustomerRefund, BankTransaction, FinancialAccount } from '../../../types';
@@ -36,6 +37,9 @@ export const AccountantView: React.FC<AccountantViewProps> = ({
   accounts,
   onNavigateToTab
 }) => {
+  const { t } = useAuth();
+  const d: Record<string, any> = t.dashboard || {};
+
   // 1. Revenue Calculations
   const grossRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const totalRefunds = refunds.reduce((sum, r) => sum + (r.amount || 0), 0);
@@ -70,15 +74,15 @@ export const AccountantView: React.FC<AccountantViewProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="bg-indigo-500/10 text-indigo-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-indigo-500/20 uppercase tracking-wider">
-              Financial Control & CPA Suite
+              {d.financialControl || 'Financial Control & CPA Suite'}
             </span>
-            <span className="text-xs text-slate-400">• General Ledger & Audit Trail</span>
+            <span className="text-xs text-slate-400">• {d.generalLedgerAudit || 'General Ledger & Audit Trail'}</span>
           </div>
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            Accounting & Financial Performance Dashboard
+            {d.accountantTitle || 'Accounting & Financial Performance Dashboard'}
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Audit P&LStatements, revenue recognition, supplier accounts payable, bank reconciliation, and estimated tax liabilities.
+            {d.accountantSubtitle || 'Audit P&L Statements, revenue recognition, supplier accounts payable, bank reconciliation, and estimated tax liabilities.'}
           </p>
         </div>
 
@@ -87,7 +91,7 @@ export const AccountantView: React.FC<AccountantViewProps> = ({
             onClick={() => onNavigateToTab('financials')}
             className="bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-lg cursor-pointer"
           >
-            <FileSpreadsheet className="w-4 h-4" /> Full Financial Ledger
+            <FileSpreadsheet className="w-4 h-4" /> {d.fullLedger || 'Full Financial Ledger'}
           </button>
         )}
       </div>
@@ -96,7 +100,7 @@ export const AccountantView: React.FC<AccountantViewProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <KPICard
-          title="Net Revenue"
+          title={d.netRevenue || 'Net Revenue'}
           value={`$${netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           sublabel={`Gross: $${grossRevenue.toFixed(0)} | Refunds: -$${totalRefunds.toFixed(0)}`}
           icon={DollarSign}
@@ -104,7 +108,7 @@ export const AccountantView: React.FC<AccountantViewProps> = ({
         />
 
         <KPICard
-          title="Total Operational Expenses"
+          title={d.operatingExpenses || 'Total Operational Expenses'}
           value={`$${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           sublabel={`${expenses.length} Expense Entries`}
           icon={BarChart3}

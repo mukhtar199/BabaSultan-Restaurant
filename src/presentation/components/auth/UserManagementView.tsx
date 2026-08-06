@@ -39,12 +39,16 @@ export const UserManagementView: React.FC = () => {
       const unsubUsers = onSnapshot(collection(db, COLLECTIONS.USERS), (snapshot) => {
         const list = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserRecord));
         setUsers(list);
-      }, (err) => console.warn('Users listener error:', err));
+      }, (err) => {
+        console.warn('Users listener error:', err);
+      });
 
       const unsubLogs = onSnapshot(collection(db, COLLECTIONS.ACTIVITY_LOGS), (snapshot) => {
         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ActivityLog));
-        list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        setActivityLogs(list);
+        if (list.length > 0) {
+          list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          setActivityLogs(list);
+        }
       }, (err) => console.warn('Activity logs listener error:', err));
 
       return () => {

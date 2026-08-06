@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Employee, Supplier, Salary } from '../../types';
 import { StaffRepositoryImpl } from '../../data/repositories/StaffRepositoryImpl';
 import {
@@ -11,7 +11,9 @@ import {
   CheckCircle2,
   Mail,
   Phone,
-  ShieldAlert
+  ShieldAlert,
+  Search,
+  Building2
 } from 'lucide-react';
 
 interface StaffAndSuppliersViewProps {
@@ -24,12 +26,21 @@ interface StaffAndSuppliersViewProps {
 const staffRepo = new StaffRepositoryImpl();
 
 export const StaffAndSuppliersView: React.FC<StaffAndSuppliersViewProps> = ({
-  employees,
-  suppliers,
-  salaries,
+  employees: propEmployees,
+  suppliers: propSuppliers,
+  salaries: propSalaries,
   onRefresh
 }) => {
   const [activeTab, setActiveTab] = useState<'employees' | 'suppliers' | 'payroll'>('employees');
+
+  // Separate State Hooks for Each Resource
+  const [employeesList, setEmployeesList] = useState<Employee[]>([]);
+  const [suppliersList, setSuppliersList] = useState<Supplier[]>([]);
+  const [salariesList, setSalariesList] = useState<Salary[]>([]);
+
+  // Search and Filter States
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
 
   // Modals
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState<boolean>(false);
@@ -51,6 +62,34 @@ export const StaffAndSuppliersView: React.FC<StaffAndSuppliersViewProps> = ({
   const [payPeriod, setPayPeriod] = useState<string>('Current Month');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  // Load Data for Employees, Suppliers, and Payroll
+  const loadData = async () => {
+    try {
+      const emps = await staffRepo.fetchEmployees();
+      setEmployeesList(emps.length > 0 ? emps : (propEmployees || []));
+    } catch {
+      setEmployeesList(propEmployees || []);
+    }
+
+    try {
+      const sups = await staffRepo.fetchSuppliers();
+      setSuppliersList(sups.length > 0 ? sups : (propSuppliers || []));
+    } catch {
+      setSuppliersList(propSuppliers || []);
+    }
+
+    try {
+      const sals = await staffRepo.fetchSalaries();
+      setSalariesList(sals.length > 0 ? sals : (propSalaries || []));
+    } catch {
+      setSalariesList(propSalaries || []);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [propEmployees, propSuppliers, propSalaries]);
+
   const handleCreateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -64,6 +103,7 @@ export const StaffAndSuppliersView: React.FC<StaffAndSuppliersViewProps> = ({
       setIsAddEmployeeOpen(false);
       setEmpName('');
       setEmpEmail('');
+      await loadData();
       if (onRefresh) onRefresh();
     } catch (err: any) {
       alert(`Error creating staff member: ${err.message}`);
@@ -86,6 +126,7 @@ export const StaffAndSuppliersView: React.FC<StaffAndSuppliersViewProps> = ({
       setIsAddSupplierOpen(false);
       setSupName('');
       setSupContact('');
+      await loadData();
       if (onRefresh) onRefresh();
     } catch (err: any) {
       alert(`Error creating supplier: ${err.message}`);
@@ -100,11 +141,12 @@ export const StaffAndSuppliersView: React.FC<StaffAndSuppliersViewProps> = ({
     try {
       await staffRepo.processSalaryPayment({
         employeeId: paySalaryEmp.id,
-        employeeName: paySalaryEmp.name,
-        amount: paySalaryEmp.salary,
+        employeeName: paySalaryEmp.name || paySalaryEmp.fullName || 'Employee',
+        amount: paySalaryEmp.salary || 500,
         period: payPeriod
       });
       setPaySalaryEmp(null);
+      await loadData();
       if (onRefresh) onRefresh();
     } catch (err: any) {
       alert(`Error processing payroll: ${err.message}`);
@@ -112,6 +154,23 @@ export const StaffAndSuppliersView: React.FC<StaffAndSuppliersViewProps> = ({
       setIsSubmitting(false);
     }
   };
+
+  // Filtered lists
+  const filteredEmployees = employeesList.filter(emp => {
+    const nameStr = (emp.fullName || emp.name || '').toLowerCase();
+    const emailStr = (emp.email || '').toLowerCase();
+    const roleStr = (emp.role || emp.jobTitle || '').toLowerCase();
+    const matchesSearch = !searchQuery || nameStr.includes(searchQuery.toLowerCase()) || emailStr.includes(searchQuery.toLowerCase());
+    const matchesRole = roleFilter === 'all' || roleStr.includes(roleFilter.toLowerCase());
+    return matchesSearch && matchesRole;
+  });
+
+  const filteredSuppliers = suppliersList.filter(s => {
+    const nameStr = (s.name || s.companyName || '').toLowerCase();
+    const contactStr = (s.contactPerson || '').toLowerCase();
+    const itemsStr = (s.itemsSupplied || '').toLowerCase();
+    return !searchQuery || nameStr.includes(searchQuery.toLowerCase()) || contactStr.includes(searchQuery.toLowerCase()) || itemsStr.includes(searchQuery.toLowerCase());
+  });
 
   return (
     <div className="space-y-6">
@@ -146,132 +205,192 @@ export const StaffAndSuppliersView: React.FC<StaffAndSuppliersViewProps> = ({
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs w-fit">
-        <button
-          onClick={() => setActiveTab('employees')}
-          className={`px-4 py-2 rounded-xl transition font-bold cursor-pointer ${
-            activeTab === 'employees' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          Staff Roster ({employees.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('suppliers')}
-          className={`px-4 py-2 rounded-xl transition font-bold cursor-pointer ${
-            activeTab === 'suppliers' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          Suppliers Directory ({suppliers.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('payroll')}
-          className={`px-4 py-2 rounded-xl transition font-bold cursor-pointer ${
-            activeTab === 'payroll' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          Payroll History ({salaries.length})
-        </button>
+      {/* Controls & Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Tabs */}
+        <div className="flex bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs w-fit">
+          <button
+            onClick={() => setActiveTab('employees')}
+            className={`px-4 py-2 rounded-xl transition font-bold cursor-pointer ${
+              activeTab === 'employees' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Staff Roster ({employeesList.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('suppliers')}
+            className={`px-4 py-2 rounded-xl transition font-bold cursor-pointer ${
+              activeTab === 'suppliers' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Suppliers Directory ({suppliersList.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('payroll')}
+            className={`px-4 py-2 rounded-xl transition font-bold cursor-pointer ${
+              activeTab === 'payroll' ? 'bg-emerald-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Payroll History ({salariesList.length})
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder={activeTab === 'employees' ? 'Search employees...' : 'Search suppliers...'}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="bg-slate-900 border border-slate-800 rounded-2xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 w-48 sm:w-64"
+            />
+          </div>
+          {activeTab === 'employees' && (
+            <select
+              value={roleFilter}
+              onChange={e => setRoleFilter(e.target.value)}
+              className="bg-slate-900 border border-slate-800 rounded-2xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+            >
+              <option value="all">All Roles</option>
+              <option value="cashier">Cashier</option>
+              <option value="chef">Chef</option>
+              <option value="manager">Manager</option>
+              <option value="driver">Driver</option>
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Staff Roster Tab */}
       {activeTab === 'employees' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {employees.map(emp => (
-            <div key={emp.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col justify-between space-y-4">
-              <div>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="text-base font-bold text-white">{emp.name}</h4>
-                    <span className="text-[10px] uppercase font-extrabold tracking-wider bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                      {emp.role}
-                    </span>
-                  </div>
-                  <span className="text-sm font-extrabold text-white">${emp.salary}/mo</span>
-                </div>
-
-                <div className="mt-4 space-y-1 text-xs text-slate-400">
-                  <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-500" /> {emp.email || 'staff@restaurant-erp.internal'}</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setPaySalaryEmp(emp)}
-                className="w-full bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 font-bold py-2 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <DollarSign className="w-4 h-4" />
-                Disburse Monthly Salary
-              </button>
+        <>
+          {filteredEmployees.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center text-slate-400 text-xs">
+              No employee records found matching criteria.
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredEmployees.map(emp => {
+                const displayName = emp.fullName || emp.name || 'Unnamed Employee';
+                const displayRole = emp.role || emp.jobTitle || 'Staff';
+                const displaySalary = Number(emp.salary) || 500;
+                return (
+                  <div key={emp.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col justify-between space-y-4">
+                    <div>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="text-base font-bold text-white">{displayName}</h4>
+                          <span className="text-[10px] uppercase font-extrabold tracking-wider bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            {displayRole}
+                          </span>
+                        </div>
+                        <span className="text-sm font-extrabold text-white">${displaySalary}/mo</span>
+                      </div>
+
+                      <div className="mt-4 space-y-1 text-xs text-slate-400">
+                        <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-500" /> {emp.email || 'staff@restaurant-erp.internal'}</p>
+                        {emp.phone && <p className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-500" /> {emp.phone}</p>}
+                        {emp.branch && <p className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5 text-slate-500" /> {emp.branch}</p>}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setPaySalaryEmp(emp)}
+                      className="w-full bg-slate-800 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 font-bold py-2 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                      Disburse Monthly Salary
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Suppliers Tab */}
       {activeTab === 'suppliers' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="bg-slate-950 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                <tr>
-                  <th className="py-4 px-6">Vendor / Supplier Name</th>
-                  <th className="py-4 px-6">Contact Person</th>
-                  <th className="py-4 px-6">Phone Number</th>
-                  <th className="py-4 px-6">Goods Supplied</th>
-                  <th className="py-4 px-6 text-right">Pending Payables</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-xs">
-                {suppliers.map(s => (
-                  <tr key={s.id} className="hover:bg-slate-800/40 transition">
-                    <td className="py-4 px-6 font-bold text-white">{s.name}</td>
-                    <td className="py-4 px-6 text-slate-300">{s.contactPerson}</td>
-                    <td className="py-4 px-6 font-mono text-slate-400">{s.phone}</td>
-                    <td className="py-4 px-6 text-slate-400">{s.itemsSupplied}</td>
-                    <td className="py-4 px-6 text-right font-extrabold text-amber-400">
-                      ${(s.pendingAmount || 0).toFixed(2)}
-                    </td>
+          {filteredSuppliers.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              No supplier records found matching criteria.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-300">
+                <thead className="bg-slate-950 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th className="py-4 px-6">Vendor / Supplier Name</th>
+                    <th className="py-4 px-6">Contact Person</th>
+                    <th className="py-4 px-6">Phone Number</th>
+                    <th className="py-4 px-6">Goods Supplied</th>
+                    <th className="py-4 px-6 text-right">Pending Payables</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-xs">
+                  {filteredSuppliers.map(s => {
+                    const sName = s.name || s.companyName || 'Unnamed Supplier';
+                    return (
+                      <tr key={s.id} className="hover:bg-slate-800/40 transition">
+                        <td className="py-4 px-6 font-bold text-white">{sName}</td>
+                        <td className="py-4 px-6 text-slate-300">{s.contactPerson || 'N/A'}</td>
+                        <td className="py-4 px-6 font-mono text-slate-400">{s.phone || 'N/A'}</td>
+                        <td className="py-4 px-6 text-slate-400">{s.itemsSupplied || 'General Supplies'}</td>
+                        <td className="py-4 px-6 text-right font-extrabold text-amber-400">
+                          ${(Number(s.pendingAmount) || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
       {/* Payroll History Tab */}
       {activeTab === 'payroll' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="bg-slate-950 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                <tr>
-                  <th className="py-4 px-6">Employee Name</th>
-                  <th className="py-4 px-6">Disbursed Amount</th>
-                  <th className="py-4 px-6">Pay Period</th>
-                  <th className="py-4 px-6">Status</th>
-                  <th className="py-4 px-6 text-right">Payment Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-xs">
-                {salaries.map(sal => (
-                  <tr key={sal.id} className="hover:bg-slate-800/40 transition">
-                    <td className="py-4 px-6 font-bold text-white">{sal.employeeName}</td>
-                    <td className="py-4 px-6 font-extrabold text-emerald-400">${sal.amount.toFixed(2)}</td>
-                    <td className="py-4 px-6 text-slate-400">{sal.period}</td>
-                    <td className="py-4 px-6">
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold uppercase text-[10px]">
-                        {sal.status}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-right text-slate-500">
-                      {new Date(sal.paidDate).toLocaleDateString()}
-                    </td>
+          {salariesList.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              No payroll records recorded yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-300">
+                <thead className="bg-slate-950 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th className="py-4 px-6">Employee Name</th>
+                    <th className="py-4 px-6">Disbursed Amount</th>
+                    <th className="py-4 px-6">Pay Period</th>
+                    <th className="py-4 px-6">Status</th>
+                    <th className="py-4 px-6 text-right">Payment Date</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-xs">
+                  {salariesList.map(sal => (
+                    <tr key={sal.id} className="hover:bg-slate-800/40 transition">
+                      <td className="py-4 px-6 font-bold text-white">{sal.employeeName}</td>
+                      <td className="py-4 px-6 font-extrabold text-emerald-400">${(Number(sal.amount) || 0).toFixed(2)}</td>
+                      <td className="py-4 px-6 text-slate-400">{sal.period}</td>
+                      <td className="py-4 px-6">
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold uppercase text-[10px]">
+                          {sal.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-right text-slate-500">
+                        {sal.paidDate ? new Date(sal.paidDate).toLocaleDateString() : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -347,6 +466,87 @@ export const StaffAndSuppliersView: React.FC<StaffAndSuppliersViewProps> = ({
         </div>
       )}
 
+      {/* Add Supplier Modal */}
+      {isAddSupplierOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleCreateSupplier} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl relative text-xs">
+            <button type="button" onClick={() => setIsAddSupplierOpen(false)} className="absolute right-4 top-4 text-slate-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-lg font-bold text-white">Add Supplier / Vendor</h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">Company / Vendor Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Mogadishu Meat Supplies"
+                  value={supName}
+                  onChange={e => setSupName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-400 font-bold block mb-1">Contact Person</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Hassan Farah"
+                    value={supContact}
+                    onChange={e => setSupContact(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 font-bold block mb-1">Phone Number</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="+252 61 000 0000"
+                    value={supPhone}
+                    onChange={e => setSupPhone(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">Goods / Items Supplied</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Meat & Meat Products"
+                  value={supItems}
+                  onChange={e => setSupItems(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">Pending Balance / Payable ($)</label>
+                <input
+                  type="number"
+                  value={supPending}
+                  onChange={e => setSupPending(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-bold focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-teal-600 hover:bg-teal-500 text-white font-extrabold py-3 rounded-xl transition cursor-pointer"
+            >
+              {isSubmitting ? 'Saving...' : 'Add Vendor to Directory'}
+            </button>
+          </form>
+        </div>
+      )}
+
       {/* Disburse Salary Modal */}
       {paySalaryEmp && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -355,11 +555,11 @@ export const StaffAndSuppliersView: React.FC<StaffAndSuppliersViewProps> = ({
               <X className="w-5 h-5" />
             </button>
             <h3 className="text-lg font-bold text-white">Process Payroll Disbursal</h3>
-            <p className="text-slate-400">{paySalaryEmp.name} ({paySalaryEmp.role})</p>
+            <p className="text-slate-400">{paySalaryEmp.fullName || paySalaryEmp.name} ({paySalaryEmp.role || paySalaryEmp.jobTitle})</p>
 
             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-center">
               <span className="text-[10px] text-slate-400 uppercase font-bold">Monthly Base Salary</span>
-              <div className="text-2xl font-extrabold text-emerald-400">${paySalaryEmp.salary.toFixed(2)}</div>
+              <div className="text-2xl font-extrabold text-emerald-400">${(paySalaryEmp.salary || 500).toFixed(2)}</div>
             </div>
 
             <button

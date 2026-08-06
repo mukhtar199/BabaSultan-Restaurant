@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { Order, OrderStatus } from '../../types';
 import { updateOrderStatusFirestore } from '../../lib/firebase';
 import { KDSView } from './orders/KDSView';
@@ -30,6 +31,7 @@ interface OrdersViewProps {
 }
 
 export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onRefresh }) => {
+  const { t } = useAuth();
   const [activeTab, setActiveTab] = useState<'pipeline' | 'kds' | 'tables' | 'customers'>('pipeline');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -63,20 +65,20 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onRefresh }) => 
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
       case 'completed':
-        return <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase">Completed</span>;
+        return <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase">{t.orders.completed}</span>;
       case 'in_preparation':
       case 'preparing':
-        return <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase animate-pulse">In Kitchen</span>;
+        return <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase animate-pulse">{t.orders.inKitchen}</span>;
       case 'ready_for_pickup':
       case 'ready':
-        return <span className="px-2.5 py-1 rounded-full bg-teal-500/20 text-teal-400 border border-teal-500/30 text-[10px] font-bold uppercase">Ready</span>;
+        return <span className="px-2.5 py-1 rounded-full bg-teal-500/20 text-teal-400 border border-teal-500/30 text-[10px] font-bold uppercase">{t.orders.ready}</span>;
       case 'out_for_delivery':
       case 'delivered':
-        return <span className="px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 text-[10px] font-bold uppercase">On Delivery</span>;
+        return <span className="px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 text-[10px] font-bold uppercase">{t.orders.onDelivery}</span>;
       case 'cancelled':
-        return <span className="px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold uppercase">Cancelled</span>;
+        return <span className="px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold uppercase">{t.orders.cancelled}</span>;
       default:
-        return <span className="px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-bold uppercase">Received</span>;
+        return <span className="px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-bold uppercase">{t.orders.received}</span>;
     }
   };
 
@@ -88,10 +90,10 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onRefresh }) => 
         <div>
           <h2 className="text-xl font-extrabold text-white flex items-center gap-2">
             <ShoppingBag className="w-6 h-6 text-emerald-400" />
-            Orders & Kitchen Operations Hub
+            {t.orders.title}
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time status tracking, Kitchen KDS, table management, customer histories & financial logs
+            {t.orders.subtitle}
           </p>
         </div>
 
@@ -106,7 +108,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onRefresh }) => 
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Orders Pipeline</span>
+            <span>{t.orders.pipeline}</span>
           </button>
 
           <button
@@ -118,7 +120,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onRefresh }) => 
             }`}
           >
             <Flame className="w-4 h-4" />
-            <span>Kitchen KDS</span>
+            <span>{t.orders.kds}</span>
           </button>
 
           <button
@@ -130,7 +132,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onRefresh }) => 
             }`}
           >
             <Utensils className="w-4 h-4" />
-            <span>Tables Floorplan</span>
+            <span>{t.orders.tables}</span>
           </button>
 
           <button
@@ -142,7 +144,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onRefresh }) => 
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Customer Directory</span>
+            <span>{t.orders.customerLog}</span>
           </button>
         </div>
       </div>

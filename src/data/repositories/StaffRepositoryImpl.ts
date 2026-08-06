@@ -6,24 +6,82 @@ import { Employee, Supplier, Salary } from '../../types';
 
 export class StaffRepositoryImpl implements IStaffRepository {
   async fetchEmployees(): Promise<Employee[]> {
-    const snap = await getDocs(collection(db, COLLECTIONS.EMPLOYEES));
-    const list: Employee[] = [];
-    snap.forEach(d => list.push({ id: d.id, ...d.data() } as Employee));
-    return list;
+    try {
+      const snap = await getDocs(collection(db, COLLECTIONS.EMPLOYEES));
+      const list: Employee[] = [];
+      snap.forEach(d => {
+        const data = d.data();
+        const empName = data.fullName || data.name || 'Unnamed Employee';
+        const empRole = data.role || data.jobTitle || 'Staff';
+        list.push({
+          id: d.id,
+          employeeId: data.employeeId || d.id,
+          fullName: empName,
+          name: empName,
+          email: data.email || '',
+          phone: data.phone || '',
+          role: empRole as any,
+          jobTitle: empRole,
+          salary: Number(data.salary) || 500,
+          status: data.status || 'active',
+          employmentStatus: data.employmentStatus || 'Active',
+          department: data.department || 'Operations',
+          branch: data.branch || 'Main Branch',
+          branchId: data.branchId || data.branch || '',
+          nationalIdOrPassport: data.nationalIdOrPassport || 'N/A',
+          address: data.address || '',
+          dateOfBirth: data.dateOfBirth || '1990-01-01',
+          gender: data.gender || 'Male',
+          nationality: data.nationality || 'Somali',
+          hireDate: data.hireDate || new Date().toISOString().split('T')[0],
+          emergencyContact: data.emergencyContact || { name: 'Emergency', relationship: 'Family', phone: '' },
+          createdAt: data.createdAt || new Date().toISOString(),
+          ...data
+        } as Employee);
+      });
+      return list;
+    } catch (err) {
+      console.warn('Note fetching employees from Firestore:', err);
+      return [];
+    }
   }
 
   async fetchSuppliers(): Promise<Supplier[]> {
-    const snap = await getDocs(collection(db, COLLECTIONS.SUPPLIERS));
-    const list: Supplier[] = [];
-    snap.forEach(d => list.push({ id: d.id, ...d.data() } as Supplier));
-    return list;
+    try {
+      const snap = await getDocs(collection(db, COLLECTIONS.SUPPLIERS));
+      const list: Supplier[] = [];
+      snap.forEach(d => {
+        const data = d.data();
+        const sName = data.name || data.companyName || 'Unnamed Supplier';
+        list.push({
+          id: d.id,
+          name: sName,
+          companyName: sName,
+          contactPerson: data.contactPerson || data.contactName || data.name || 'N/A',
+          phone: data.phone || '',
+          itemsSupplied: data.itemsSupplied || data.category || (Array.isArray(data.productsSupplied) ? data.productsSupplied.join(', ') : 'General Supplies'),
+          pendingAmount: Number(data.pendingAmount ?? data.outstandingBalance ?? 0),
+          overdueAmount: Number(data.overdueAmount ?? 0),
+          ...data
+        } as Supplier);
+      });
+      return list;
+    } catch (err) {
+      console.warn('Note fetching suppliers from Firestore:', err);
+      return [];
+    }
   }
 
   async fetchSalaries(): Promise<Salary[]> {
-    const snap = await getDocs(collection(db, COLLECTIONS.SALARIES));
-    const list: Salary[] = [];
-    snap.forEach(d => list.push({ id: d.id, ...d.data() } as Salary));
-    return list;
+    try {
+      const snap = await getDocs(collection(db, COLLECTIONS.SALARIES));
+      const list: Salary[] = [];
+      snap.forEach(d => list.push({ id: d.id, ...d.data() } as Salary));
+      return list;
+    } catch (err) {
+      console.warn('Note fetching salaries from Firestore:', err);
+      return [];
+    }
   }
 
   async createEmployee(payload: NewEmployeePayload): Promise<Employee> {

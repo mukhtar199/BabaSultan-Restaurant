@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { Customer } from '../../../domain/entities/customer';
 import { CustomerListView } from './CustomerListView';
 import { CustomerDetailsView } from './CustomerDetailsView';
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const CustomerManagementView: React.FC = () => {
+  const { t } = useAuth();
   const [activeTab, setActiveTab] = useState<'directory' | 'loyalty' | 'coupons' | 'wallets' | 'analytics'>('directory');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [walletModalCustomerId, setWalletModalCustomerId] = useState<string | null>(null);
@@ -43,11 +45,11 @@ export const CustomerManagementView: React.FC = () => {
       <div className="bg-slate-900 border border-slate-800 p-2 rounded-3xl flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1 overflow-x-auto p-1">
           {[
-            { id: 'directory', label: 'Customer Directory', icon: Users },
-            { id: 'loyalty', label: 'Loyalty & Membership', icon: Award },
-            { id: 'coupons', label: 'Promotional Coupons', icon: Tag },
-            { id: 'wallets', label: 'Customer Wallets', icon: Wallet },
-            { id: 'analytics', label: 'CRM Analytics', icon: BarChart3 }
+            { id: 'directory', label: t.crm?.customersList || 'Customer Directory', icon: Users },
+            { id: 'loyalty', label: t.crm?.loyalty || 'Loyalty & Membership', icon: Award },
+            { id: 'coupons', label: t.crm?.coupons || 'Promotional Coupons', icon: Tag },
+            { id: 'wallets', label: t.crm?.wallet || 'Customer Wallets', icon: Wallet },
+            { id: 'analytics', label: t.crm?.analytics || 'CRM Analytics', icon: BarChart3 }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;

@@ -432,9 +432,9 @@ export const AccountingManagementView: React.FC = () => {
             <Landmark className="w-4 h-4" />
             <span>ERP Phase 10 • Double-Entry Financial Engine</span>
           </div>
-          <h1 className="text-2xl font-extrabold text-white">Accounting & Finance System</h1>
+          <h1 className="text-2xl font-extrabold text-white">{t.accounting?.title || 'Accounting & Finance System'}</h1>
           <p className="text-xs text-slate-400">
-            Comprehensive ledger, journals, cash/bank management, accounts receivable, payable & compliance reports.
+            {t.accounting?.subtitle || 'Comprehensive ledger, journals, cash/bank management, accounts receivable, payable & compliance reports.'}
           </p>
         </div>
 
@@ -444,14 +444,14 @@ export const AccountingManagementView: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
-            <span>New Journal Entry</span>
+            <span>{t.accounting?.newJournal || 'New Journal Entry'}</span>
           </button>
           <button
             onClick={() => setIsExpenseModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs border border-slate-700 transition cursor-pointer"
           >
             <Receipt className="w-4 h-4 text-emerald-400" />
-            <span>Record Expense</span>
+            <span>{t.accounting?.recordExpense || 'Record Expense'}</span>
           </button>
           <button
             onClick={loadAllData}
@@ -493,16 +493,16 @@ export const AccountingManagementView: React.FC = () => {
       {/* Navigation Sub-Tabs */}
       <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1.5 rounded-2xl overflow-x-auto">
         {[
-          { id: 'dashboard', label: 'Dashboard', icon: PieChart },
-          { id: 'accounts', label: 'Chart of Accounts', icon: Layers },
-          { id: 'journals', label: 'Journal Entries', icon: FileText },
-          { id: 'ledger', label: 'General Ledger', icon: Scale },
-          { id: 'receivables', label: 'Accounts Receivable', icon: ArrowUpRight },
-          { id: 'payables', label: 'Accounts Payable', icon: ArrowDownRight },
-          { id: 'expenses', label: 'Expenses', icon: Receipt },
-          { id: 'cashbank', label: 'Cash & Bank', icon: CreditCard },
-          { id: 'taxes', label: 'Taxes', icon: Percent },
-          { id: 'reports', label: 'Financial Reports', icon: Printer }
+          { id: 'dashboard', label: t.accounting?.dashboard || 'Dashboard', icon: PieChart },
+          { id: 'accounts', label: t.accounting?.chartOfAccounts || 'Chart of Accounts', icon: Layers },
+          { id: 'journals', label: t.accounting?.journalEntries || 'Journal Entries', icon: FileText },
+          { id: 'ledger', label: t.accounting?.generalLedger || 'General Ledger', icon: Scale },
+          { id: 'receivables', label: t.accounting?.receivables || 'Accounts Receivable', icon: ArrowUpRight },
+          { id: 'payables', label: t.accounting?.payables || 'Accounts Payable', icon: ArrowDownRight },
+          { id: 'expenses', label: t.accounting?.expenses || 'Expenses', icon: Receipt },
+          { id: 'cashbank', label: t.accounting?.cashBank || 'Cash & Bank', icon: CreditCard },
+          { id: 'taxes', label: t.accounting?.taxes || 'Taxes', icon: Percent },
+          { id: 'reports', label: t.accounting?.reports || 'Financial Reports', icon: Printer }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

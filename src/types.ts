@@ -402,6 +402,7 @@ export type Salary = SalaryPayment;
 export interface Supplier {
   id: string;
   name: string;
+  companyName?: string;
   contactPerson: string;
   phone: string;
   itemsSupplied: string;

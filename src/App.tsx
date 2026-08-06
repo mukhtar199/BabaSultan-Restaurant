@@ -33,6 +33,7 @@ import { Layout } from './presentation/layout/Layout';
 import { ProtectedRoute } from './presentation/components/common/ProtectedRoute';
 import { RoleGuard } from './presentation/components/common/RoleGuard';
 import { handleFirestoreError, OperationType } from './infrastructure/firebase/errorHandler';
+import { getLocalStorageState } from './lib/localStorageData';
 
 // Phase 2 Auth Components
 import { UserManagementView } from './presentation/components/auth/UserManagementView';
@@ -59,6 +60,7 @@ import { AdminPanelView } from './presentation/components/AdminPanelView';
 import { BranchManagementView } from './presentation/components/branch/BranchManagementView';
 import { DeliveryManagementView } from './presentation/components/delivery/DeliveryManagementView';
 import { SystemSettingsView } from './presentation/components/SystemSettingsView';
+import { InitialSetupWizardModal } from './presentation/components/setup/InitialSetupWizardModal';
 import { AIBusinessPlatformView } from './presentation/components/AIBusinessPlatformView';
 import { AIFinancialAdvisorView } from './components/AIFinancialAdvisorView';
 import { AIOperationsManagerView } from './components/AIOperationsManagerView';
@@ -71,6 +73,7 @@ function ERPAppContent() {
   const { language, t } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
+  const [isSetupWizardOpen, setIsSetupWizardOpen] = useState(false);
   const [seedSuccessMsg, setSeedSuccessMsg] = useState<string | null>(null);
 
   // Live Firestore State
@@ -93,63 +96,87 @@ function ERPAppContent() {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
       docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setOrders(docs);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.ORDERS));
+    }, (err) => {
+      console.warn('Orders listener notice:', err?.message || err);
+    });
 
     const unsubProducts = onSnapshot(collection(db, COLLECTIONS.PRODUCTS), (snapshot) => {
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.PRODUCTS));
+    }, (err) => {
+      console.warn('Products listener notice:', err?.message || err);
+    });
 
     const unsubIngredients = onSnapshot(collection(db, COLLECTIONS.INGREDIENTS), (snapshot) => {
       setIngredients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ingredient)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.INGREDIENTS));
+    }, (err) => {
+      console.warn('Ingredients listener notice:', err?.message || err);
+    });
 
     const unsubExpenses = onSnapshot(collection(db, COLLECTIONS.EXPENSES), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Expense));
       docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setExpenses(docs);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.EXPENSES));
+    }, (err) => {
+      console.warn('Expenses listener notice:', err?.message || err);
+    });
 
     const unsubPurchases = onSnapshot(collection(db, COLLECTIONS.PURCHASES), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Purchase));
       docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setPurchases(docs);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.PURCHASES));
+    }, (err) => {
+      console.warn('Purchases listener notice:', err?.message || err);
+    });
 
     const unsubEmployees = onSnapshot(collection(db, COLLECTIONS.EMPLOYEES), (snapshot) => {
       setEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.EMPLOYEES));
+    }, (err) => {
+      console.warn('Employees listener notice:', err?.message || err);
+    });
 
     const unsubSalaries = onSnapshot(collection(db, COLLECTIONS.SALARIES), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SalaryPayment));
       docs.sort((a, b) => new Date(b.paidDate).getTime() - new Date(a.paidDate).getTime());
       setSalaries(docs);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.SALARIES));
+    }, (err) => {
+      console.warn('Salaries listener notice:', err?.message || err);
+    });
 
     const unsubSuppliers = onSnapshot(collection(db, COLLECTIONS.SUPPLIERS), (snapshot) => {
       setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.SUPPLIERS));
+    }, (err) => {
+      console.warn('Suppliers listener notice:', err?.message || err);
+    });
 
     const unsubMovements = onSnapshot(collection(db, COLLECTIONS.MOVEMENTS), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InventoryMovement));
       docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setMovements(docs);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.MOVEMENTS));
+    }, (err) => {
+      console.warn('Movements listener notice:', err?.message || err);
+    });
 
     const unsubRefunds = onSnapshot(collection(db, COLLECTIONS.REFUNDS), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CustomerRefund));
       docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setRefunds(docs);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.REFUNDS));
+    }, (err) => {
+      console.warn('Refunds listener notice:', err?.message || err);
+    });
 
     const unsubBankTx = onSnapshot(collection(db, COLLECTIONS.BANK_TRANSACTIONS), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BankTransaction));
       docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setBankTransactions(docs);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.BANK_TRANSACTIONS));
+    }, (err) => {
+      console.warn('Bank Transactions listener notice:', err?.message || err);
+    });
 
     const unsubAccounts = onSnapshot(collection(db, COLLECTIONS.ACCOUNTS), (snapshot) => {
       setAccounts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinancialAccount)));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, COLLECTIONS.ACCOUNTS));
+    }, (err) => {
+      console.warn('Accounts listener notice:', err?.message || err);
+    });
 
     return () => {
       unsubOrders();
@@ -275,7 +302,7 @@ function ERPAppContent() {
 
   return (
     <ProtectedRoute>
-      <Layout currentView={currentView} onSelectView={setCurrentView}>
+      <Layout currentView={currentView} onSelectView={setCurrentView} onOpenSetupWizard={() => setIsSetupWizardOpen(true)}>
         {/* Seed Success Toast */}
         {seedSuccessMsg && (
           <div className="bg-emerald-500 text-slate-950 font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center justify-between shadow-lg mb-4">
@@ -426,7 +453,11 @@ function ERPAppContent() {
 
         {currentView === 'staff' && (
           <RoleGuard permissionKey="canAccessStaff">
-            <HRMManagementView />
+            <StaffAndSuppliersView
+              employees={employees}
+              suppliers={suppliers}
+              salaries={salaries}
+            />
           </RoleGuard>
         )}
 
@@ -471,11 +502,21 @@ function ERPAppContent() {
           </RoleGuard>
         )}
 
-        {currentView === 'settings' && (
+        {(currentView === 'settings' || currentView === 'diagnostics') && (
           <RoleGuard permissionKey="canManageBranchSettings">
-            <SystemSettingsView language={language} />
+            <SystemSettingsView
+              language={language}
+              onOpenSetupWizard={() => setIsSetupWizardOpen(true)}
+              defaultTab={currentView === 'diagnostics' ? 'developer_tools' : undefined}
+            />
           </RoleGuard>
         )}
+
+        {/* Initial Setup Wizard Modal */}
+        <InitialSetupWizardModal
+          isOpen={isSetupWizardOpen}
+          onClose={() => setIsSetupWizardOpen(false)}
+        />
 
         {/* Floating AI Assistant Trigger */}
         <button

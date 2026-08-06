@@ -1,9 +1,89 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Global helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Enterprise Users collection
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Activity & Audit Logs collection
+    match /activity_logs/{logId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // ERP Operational Collections
+    match /orders/{orderId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /ingredients/{ingredientId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /employees/{employeeId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /salaries/{salaryId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /inventory_movements/{movementId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /refunds/{refundId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /bank_transactions/{transactionId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /accounts/{accountId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Default fallback rule
     match /{document=**} {
-      allow read, write: if false;
+      allow read: if true;
+      allow write: if isSignedIn();
     }
   }
 }

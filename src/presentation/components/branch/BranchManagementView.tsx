@@ -217,9 +217,9 @@ export const BranchManagementView: React.FC<BranchManagementViewProps> = ({
     const unsubBranches = onSnapshot(query(collection(db, COLLECTIONS.BRANCHES)), (snap) => {
       const list: Branch[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Branch));
-      if (list.length > 0) {
-        setBranches(list);
-        if (!selectedBranchId) setSelectedBranchId(list[0].id);
+      setBranches(list);
+      if (list.length > 0 && !selectedBranchId) {
+        setSelectedBranchId(list[0].id);
       }
     }, handleBranchErr);
 

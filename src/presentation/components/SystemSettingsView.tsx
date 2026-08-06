@@ -24,20 +24,25 @@ import {
   Zap,
   HelpCircle,
   Copy,
-  Check
+  Check,
+  Wand2,
+  Activity
 } from 'lucide-react';
 import { exportToExcel } from '../../lib/reports';
 import { db, COLLECTIONS } from '../../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import { DeveloperSystemDiagnosticsView } from './diagnostics/DeveloperSystemDiagnosticsView';
 
 interface SystemSettingsViewProps {
   language?: 'en' | 'ar' | 'so';
+  onOpenSetupWizard?: () => void;
+  defaultTab?: string;
 }
 
-export const SystemSettingsView: React.FC<SystemSettingsViewProps> = ({ language = 'en' }) => {
+export const SystemSettingsView: React.FC<SystemSettingsViewProps> = ({ language = 'en', onOpenSetupWizard, defaultTab }) => {
   const [activeTab, setActiveTab] = useState<
-    'general' | 'restaurant' | 'tax_currency' | 'localization' | 'printers_payment' | 'backup_recovery' | 'docs' | 'readiness'
-  >('general');
+    'general' | 'restaurant' | 'tax_currency' | 'localization' | 'printers_payment' | 'backup_recovery' | 'docs' | 'readiness' | 'developer_tools'
+  >((defaultTab as any) || 'general');
 
   // General Settings State
   const [generalSettings, setGeneralSettings] = useState({
@@ -206,6 +211,15 @@ export const SystemSettingsView: React.FC<SystemSettingsViewProps> = ({ language
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {onOpenSetupWizard && (
+              <button
+                onClick={onOpenSetupWizard}
+                className="bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black px-5 py-3 rounded-2xl text-xs transition flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/25"
+              >
+                <Wand2 className="w-4 h-4 text-slate-950" /> Initial Setup Wizard
+              </button>
+            )}
+
             <button
               onClick={handleSaveSettings}
               className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-5 py-3 rounded-2xl text-xs transition flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20"
@@ -303,8 +317,24 @@ export const SystemSettingsView: React.FC<SystemSettingsViewProps> = ({ language
           >
             <BookOpen className="w-4 h-4" /> System Manuals & Docs
           </button>
+
+          <button
+            onClick={() => setActiveTab('developer_tools')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition flex items-center gap-2 cursor-pointer ${
+              activeTab === 'developer_tools'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400'
+                : 'bg-indigo-950/60 text-indigo-300 hover:text-white border border-indigo-700/60'
+            }`}
+          >
+            <Activity className="w-4 h-4 text-emerald-400 fill-emerald-400/20 animate-pulse" /> Developer Tools & Diagnostics
+          </button>
         </div>
       </div>
+
+      {/* TAB: DEVELOPER TOOLS & SYSTEM DIAGNOSTICS */}
+      {activeTab === 'developer_tools' && (
+        <DeveloperSystemDiagnosticsView language={language} />
+      )}
 
       {/* TAB 1: GENERAL INFO */}
       {activeTab === 'general' && (

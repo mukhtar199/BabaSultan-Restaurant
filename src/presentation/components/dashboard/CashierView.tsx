@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { KPICard } from './KPICard';
 import { OrdersVolumeChart } from './DashboardCharts';
 import { Order } from '../../../types';
@@ -20,6 +21,9 @@ interface CashierViewProps {
 }
 
 export const CashierView: React.FC<CashierViewProps> = ({ orders, onNavigateToTab }) => {
+  const { t } = useAuth();
+  const d: Record<string, any> = t.dashboard || {};
+
   const todayIso = new Date().toISOString().split('T')[0];
   const todayOrders = orders.filter(o => o.createdAt && o.createdAt.startsWith(todayIso));
 
@@ -47,15 +51,15 @@ export const CashierView: React.FC<CashierViewProps> = ({ orders, onNavigateToTa
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="bg-emerald-500/10 text-emerald-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-emerald-500/20 uppercase tracking-wider">
-              Terminal Active
+              {d.terminalActive || 'Terminal Active'}
             </span>
-            <span className="text-xs text-slate-400">• Shift Cashier Counter</span>
+            <span className="text-xs text-slate-400">• {d.shiftCashierCounter || 'Shift Cashier Counter'}</span>
           </div>
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            Front Counter Cashier & POS Terminal
+            {d.cashierTitle || 'Front Counter Cashier & POS Terminal'}
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Monitor real-time customer settlement queue, payment method totals, and shift register totals.
+            {d.cashierSubtitle || 'Monitor real-time customer settlement queue, payment method totals, and shift register totals.'}
           </p>
         </div>
 
@@ -64,7 +68,7 @@ export const CashierView: React.FC<CashierViewProps> = ({ orders, onNavigateToTa
             onClick={() => onNavigateToTab('pos')}
             className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm px-5 py-3 rounded-2xl transition flex items-center gap-2 shadow-xl shadow-emerald-500/20 cursor-pointer"
           >
-            <Plus className="w-5 h-5" /> Launch POS Checkout
+            <Plus className="w-5 h-5" /> {d.launchPos || 'Launch POS Checkout'}
           </button>
         )}
       </div>
@@ -73,7 +77,7 @@ export const CashierView: React.FC<CashierViewProps> = ({ orders, onNavigateToTa
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <KPICard
-          title="New Orders Queue"
+          title={d.newOrdersQueue || 'New Orders Queue'}
           value={newOrders.length}
           sublabel="Awaiting payment & kitchen dispatch"
           icon={Clock}
@@ -83,7 +87,7 @@ export const CashierView: React.FC<CashierViewProps> = ({ orders, onNavigateToTa
         />
 
         <KPICard
-          title="Completed Orders Today"
+          title={d.completedOrdersToday || 'Completed Orders Today'}
           value={completedOrdersToday.length}
           sublabel="Successfully settled transactions"
           icon={CheckCircle2}
@@ -91,7 +95,7 @@ export const CashierView: React.FC<CashierViewProps> = ({ orders, onNavigateToTa
         />
 
         <KPICard
-          title="Daily Sales Total"
+          title={d.dailySalesTotal || 'Daily Sales Total'}
           value={`$${dailySales.toFixed(2)}`}
           sublabel={`${todayOrders.length} settled tickets`}
           icon={DollarSign}

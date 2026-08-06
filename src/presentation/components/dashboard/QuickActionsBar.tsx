@@ -25,18 +25,31 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
   onNavigateToTab,
   onOpenAIQuery
 }) => {
-  const { role, switchRole, permissions, t } = useAuth();
+  const { role, switchRole, permissions, t, language } = useAuth();
+
+  const getRoleLabel = (roleKey: UserRole, fallback: string) => {
+    if (t.roles && t.roles[roleKey]) {
+      return t.roles[roleKey];
+    }
+    return fallback;
+  };
 
   const roleViews: { id: string; label: string; roleKey: UserRole }[] = [
-    { id: 'owner', label: 'Owner Dashboard', roleKey: 'Owner' },
-    { id: 'manager', label: 'Manager Dashboard', roleKey: 'Manager' },
-    { id: 'accountant', label: 'Accountant Dashboard', roleKey: 'Accountant' },
-    { id: 'cashier', label: 'Cashier Dashboard', roleKey: 'Cashier' },
-    { id: 'kitchen', label: 'Kitchen Dashboard', roleKey: 'Kitchen' },
-    { id: 'waiter', label: 'Waiter Station', roleKey: 'Waiter' },
-    { id: 'delivery', label: 'Delivery Driver', roleKey: 'Delivery Driver' },
-    { id: 'admin', label: 'System Admin', roleKey: 'Admin' }
+    { id: 'owner', label: getRoleLabel('Owner', 'Owner'), roleKey: 'Owner' },
+    { id: 'manager', label: getRoleLabel('Manager', 'Manager'), roleKey: 'Manager' },
+    { id: 'accountant', label: getRoleLabel('Accountant', 'Accountant'), roleKey: 'Accountant' },
+    { id: 'cashier', label: getRoleLabel('Cashier', 'Cashier'), roleKey: 'Cashier' },
+    { id: 'kitchen', label: getRoleLabel('Kitchen', 'Kitchen Staff'), roleKey: 'Kitchen' },
+    { id: 'waiter', label: getRoleLabel('Waiter', 'Waiter'), roleKey: 'Waiter' },
+    { id: 'delivery', label: getRoleLabel('Delivery Driver', 'Delivery Driver'), roleKey: 'Delivery Driver' },
+    { id: 'admin', label: getRoleLabel('Admin', 'Admin'), roleKey: 'Admin' }
   ];
+
+  const viewAsText = language === 'ar' ? 'عرض كـ:' : language === 'so' ? 'Ku Eeg:' : 'View As:';
+  const posOrderText = language === 'ar' ? '+ طلب جديد' : language === 'so' ? '+ Dalab Mp' : '+ POS Order';
+  const logExpenseText = language === 'ar' ? '+ تسجيل مصروف' : language === 'so' ? '+ Qor Kharash' : '+ Log Expense';
+  const stockMovementText = language === 'ar' ? 'حركة المخزون' : language === 'so' ? 'Mawqifka Alaabta' : 'Stock Movement';
+  const aiAdvisorText = language === 'ar' ? 'المستشار الذكي' : language === 'so' ? 'Garaadka AI' : 'AI Advisor';
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-xl space-y-4">
@@ -46,7 +59,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
         <div className="flex items-center gap-2 overflow-x-auto w-full lg:w-auto pb-2 lg:pb-0 scrollbar-none">
           <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> View As:
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> {viewAsText}
             </span>
             {roleViews.map(rv => {
               const isActive = activeRoleView.toLowerCase() === rv.id;
@@ -81,7 +94,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
                 className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
               >
                 <ShoppingCart className="w-3.5 h-3.5 text-emerald-400" />
-                <span>+ POS Order</span>
+                <span>{posOrderText}</span>
               </button>
 
               <button
@@ -89,7 +102,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
                 className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
               >
                 <Receipt className="w-3.5 h-3.5 text-indigo-400" />
-                <span>+ Log Expense</span>
+                <span>{logExpenseText}</span>
               </button>
 
               <button
@@ -97,7 +110,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
                 className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
               >
                 <Boxes className="w-3.5 h-3.5 text-amber-400" />
-                <span>Stock Movement</span>
+                <span>{stockMovementText}</span>
               </button>
             </>
           )}
@@ -108,7 +121,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
               className="bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap shadow-md cursor-pointer"
             >
               <Bot className="w-4 h-4" />
-              <span>AI Advisor</span>
+              <span>{aiAdvisorText}</span>
             </button>
           )}
         </div>

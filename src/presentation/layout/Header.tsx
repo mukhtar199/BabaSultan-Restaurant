@@ -13,11 +13,13 @@ import {
   AlertTriangle,
   LogOut,
   Info,
-  X
+  X,
+  Wand2
 } from 'lucide-react';
 
 interface HeaderProps {
   onMobileMenuToggle: () => void;
+  onOpenSetupWizard?: () => void;
 }
 
 interface NotificationItem {
@@ -29,7 +31,7 @@ interface NotificationItem {
   read: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle }) => {
+export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, onOpenSetupWizard }) => {
   const { user, userRecord, role, switchRole, language, setLanguage, themeMode, toggleTheme, logout, t } = useAuth();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -95,12 +97,12 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle }) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Role Switcher */}
         <div className="relative group">
-          <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 rounded-xl px-2.5 py-1.5 text-xs text-white cursor-pointer hover:border-emerald-500/50 transition">
-            <Shield className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="font-semibold">{t.roles[role as keyof typeof t.roles] || role}</span>
+          <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 rounded-xl px-2 sm:px-2.5 py-1.5 text-xs text-white cursor-pointer hover:border-emerald-500/50 transition">
+            <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="font-semibold text-[11px] sm:text-xs truncate max-w-[80px] sm:max-w-none">{t.roles[role as keyof typeof t.roles] || role}</span>
             <select
               value={role}
               onChange={(e) => switchRole(e.target.value as UserRole)}
@@ -117,9 +119,9 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle }) => {
 
         {/* Language Selector */}
         <div className="relative group">
-          <div className="flex items-center gap-1 bg-slate-800/90 border border-slate-700/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-300 hover:border-emerald-500/50 transition">
-            <Globe className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-semibold uppercase">{language}</span>
+          <div className="flex items-center gap-1 bg-slate-800/90 border border-slate-700/80 rounded-xl px-2 sm:px-2.5 py-1.5 text-xs text-slate-300 hover:border-emerald-500/50 transition">
+            <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="font-semibold uppercase text-[11px] sm:text-xs">{language}</span>
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value as SupportedLanguage)}
@@ -133,6 +135,18 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle }) => {
             </select>
           </div>
         </div>
+
+        {/* Initial Setup Wizard Button */}
+        {onOpenSetupWizard && (
+          <button
+            onClick={onOpenSetupWizard}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 hover:border-emerald-400 text-xs font-bold transition cursor-pointer shadow-sm shadow-emerald-500/10"
+            title="Launch Guided 10-Step Setup Wizard"
+          >
+            <Wand2 className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span>Setup Wizard</span>
+          </button>
+        )}
 
         {/* Theme Toggle */}
         <button
@@ -166,7 +180,7 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle }) => {
 
           {/* Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl z-50 p-4 space-y-3">
+            <div className="absolute ltr:right-0 ltr:left-auto rtl:left-0 rtl:right-auto mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl z-50 p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-amber-400" />
@@ -247,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle }) => {
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl z-50 p-4 space-y-4">
+            <div className="absolute ltr:right-0 ltr:left-auto rtl:left-0 rtl:right-auto mt-2 w-64 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl z-50 p-4 space-y-4">
               <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-sm">
                   {userRecord?.displayName?.substring(0, 2).toUpperCase() || 'US'}

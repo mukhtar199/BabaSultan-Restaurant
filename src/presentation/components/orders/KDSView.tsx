@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { Order, OrderStatus } from '../../../types';
 import {
   KitchenTicket,
@@ -47,11 +48,18 @@ const repo = new KitchenRepositoryImpl();
 const controller = new KitchenController(repo);
 
 export const KDSView: React.FC<KDSViewProps> = ({ orders, onUpdateStatus }) => {
+  const { language } = useAuth();
   // Navigation Tabs: queue | station | analytics
   const [activeTab, setActiveTab] = useState<'queue' | 'station' | 'analytics'>('queue');
 
   // Multi-lingual support: en | ar | so
-  const [lang, setLang] = useState<KitchenLang>('en');
+  const currentLang = (language || 'en') as KitchenLang;
+  const [lang, setLang] = useState<KitchenLang>(currentLang);
+
+  useEffect(() => {
+    setLang(currentLang);
+  }, [currentLang]);
+
   const t = kdsDict[lang] || kdsDict.en;
   const isRtl = lang === 'ar';
 

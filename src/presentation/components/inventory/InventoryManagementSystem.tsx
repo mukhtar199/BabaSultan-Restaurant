@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import {
   InventoryItem,
   InventoryMovement,
@@ -42,11 +43,18 @@ export const InventoryManagementSystem: React.FC<InventoryManagementSystemProps>
   userRole = 'Admin',
   userBranch = 'Main Branch'
 }) => {
+  const { language } = useAuth();
   // Controller instantiation
   const controller = useMemo(() => new InventoryController(new InventoryRepositoryImpl()), []);
 
   // Language state
-  const [lang, setLang] = useState<InventoryLang>('en');
+  const currentLang = (language || 'en') as InventoryLang;
+  const [lang, setLang] = useState<InventoryLang>(currentLang);
+
+  useEffect(() => {
+    setLang(currentLang);
+  }, [currentLang]);
+
   const t = inventoryDict[lang] || inventoryDict.en;
   const isRtl = lang === 'ar';
 

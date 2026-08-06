@@ -1,6 +1,7 @@
 import { SupportedLanguage } from '../constants';
 
 export interface TranslationDictionary {
+  [key: string]: any;
   appName: string;
   appDescription: string;
   language: string;
@@ -158,6 +159,178 @@ export interface TranslationDictionary {
     details: string;
     timestamp: string;
     noLogs: string;
+  };
+  pos: {
+    title: string;
+    subtitle: string;
+    heldOrders: string;
+    cashier: string;
+    searchPlaceholder: string;
+    allCategories: string;
+    outOfStock: string;
+    leftInStock: string;
+    currentCart: string;
+    itemsCount: string;
+    dineIn: string;
+    takeout: string;
+    delivery: string;
+    online: string;
+    reserve: string;
+    customerLabel: string;
+    walkInGuest: string;
+    tableLabel: string;
+    noTableNeeded: string;
+    cartEmpty: string;
+    selectDishes: string;
+    applyDiscount: string;
+    subtotal: string;
+    vat: string;
+    discount: string;
+    grandTotal: string;
+    holdButton: string;
+    payButton: string;
+  };
+  orders: {
+    title: string;
+    subtitle: string;
+    pipeline: string;
+    kds: string;
+    tables: string;
+    customerLog: string;
+    allOrders: string;
+    orderDetails: string;
+    editOrder: string;
+    completed: string;
+    inKitchen: string;
+    ready: string;
+    onDelivery: string;
+    cancelled: string;
+    received: string;
+  };
+  accounting: {
+    title: string;
+    subtitle: string;
+    newJournal: string;
+    recordExpense: string;
+    dashboard: string;
+    chartOfAccounts: string;
+    journalEntries: string;
+    generalLedger: string;
+    receivables: string;
+    payables: string;
+    expenses: string;
+    cashBank: string;
+    taxes: string;
+    reports: string;
+  };
+  hrm: {
+    title: string;
+    subtitle: string;
+    addEmployee: string;
+    dashboard: string;
+    directory: string;
+    attendance: string;
+    shifts: string;
+    payroll: string;
+    leave: string;
+    performance: string;
+  };
+  crm: {
+    title: string;
+    subtitle: string;
+    addCustomer: string;
+    customersList: string;
+    wallet: string;
+    coupons: string;
+    loyalty: string;
+    analytics: string;
+  };
+  settings: {
+    title: string;
+    subtitle: string;
+    general: string;
+    posAndPrint: string;
+    taxesAndCurrency: string;
+    notifications: string;
+    backupAndSync: string;
+    saveSettings: string;
+  };
+  ai: {
+    title: string;
+    subtitle: string;
+    financialAdvisor: string;
+    operationsManager: string;
+    ceoCommand: string;
+    askAI: string;
+  };
+  dashboard: {
+    [key: string]: any;
+    ownerTitle: string;
+    executiveSuite: string;
+    enterpriseVisibility: string;
+    ownerSubtitle: string;
+    healthScore: string;
+    netProfitMargin: string;
+    foodCogs: string;
+    totalSales: string;
+    todayRevenue: string;
+    todayProfit: string;
+    monthlyProfit: string;
+    totalExpenses: string;
+    cashFlow: string;
+    totalOrders: string;
+    customerGrowth: string;
+    inventoryStatus: string;
+    manageInventory: string;
+    totalItems: string;
+    healthyStock: string;
+    lowStockAlerts: string;
+    employeeLeaderboard: string;
+    staffPortal: string;
+    managerTitle: string;
+    shiftOperations: string;
+    managerControlRoom: string;
+    managerSubtitle: string;
+    openPos: string;
+    activeOrdersQueue: string;
+    dailyRevenue: string;
+    kitchenPrepItems: string;
+    deliveryOrders: string;
+    accountantTitle: string;
+    financialControl: string;
+    generalLedgerAudit: string;
+    accountantSubtitle: string;
+    fullLedger: string;
+    netRevenue: string;
+    grossProfit: string;
+    netOperatingProfit: string;
+    operatingExpenses: string;
+    estVatPayable: string;
+    cashierTitle: string;
+    terminalActive: string;
+    shiftCashierCounter: string;
+    cashierSubtitle: string;
+    launchPos: string;
+    newOrdersQueue: string;
+    completedOrdersToday: string;
+    dailySalesTotal: string;
+    kitchenTitle: string;
+    lineChefKds: string;
+    kitchenDisplayScreen: string;
+    kitchenSubtitle: string;
+    stationsActive: string;
+    preparingOnStove: string;
+    readyForPickup: string;
+    delayedAlerts: string;
+    adminTitle: string;
+    systemAdmin: string;
+    fullRbac: string;
+    adminSubtitle: string;
+    openAdminControl: string;
+    waiterTitle: string;
+    floorStaff: string;
+    waiterSubtitle: string;
+    createTableOrder: string;
   };
 }
 
@@ -320,6 +493,177 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       details: 'Details',
       timestamp: 'Timestamp',
       noLogs: 'No activity logs recorded yet.'
+    },
+    pos: {
+      title: 'Restaurant POS Terminal',
+      subtitle: 'Real-time cashier checkout terminal connected directly to Firestore catalog & inventory',
+      heldOrders: 'Held Orders',
+      cashier: 'Cashier',
+      searchPlaceholder: 'Search dish (EN / AR / SO), SKU, or barcode...',
+      allCategories: 'All',
+      outOfStock: 'Out of Stock',
+      leftInStock: 'left',
+      currentCart: 'Current Order Cart',
+      itemsCount: 'items',
+      dineIn: 'Dine In',
+      takeout: 'Takeout',
+      delivery: 'Delivery',
+      online: 'Online',
+      reserve: 'Reserve',
+      customerLabel: 'Customer',
+      walkInGuest: 'Walk-in Guest',
+      tableLabel: 'Table',
+      noTableNeeded: 'No Table Needed',
+      cartEmpty: 'Cart is currently empty',
+      selectDishes: 'Select dishes from the catalog to build an order',
+      applyDiscount: 'Apply Discount',
+      subtotal: 'Subtotal',
+      vat: 'VAT',
+      discount: 'Discount',
+      grandTotal: 'Grand Total',
+      holdButton: 'Hold',
+      payButton: 'Pay'
+    },
+    orders: {
+      title: 'Orders & Kitchen Operations Hub',
+      subtitle: 'Real-time status tracking, Kitchen KDS, table management & customer histories',
+      pipeline: 'Orders Pipeline',
+      kds: 'Kitchen KDS',
+      tables: 'Table Layout',
+      customerLog: 'Customer Log',
+      allOrders: 'All Orders',
+      orderDetails: 'Order Details',
+      editOrder: 'Edit Order',
+      completed: 'Completed',
+      inKitchen: 'In Kitchen',
+      ready: 'Ready',
+      onDelivery: 'On Delivery',
+      cancelled: 'Cancelled',
+      received: 'Received'
+    },
+    accounting: {
+      title: 'Accounting & Finance System',
+      subtitle: 'Double-entry ledger, journals, cash & bank, AR/AP, expenses & compliance reports',
+      newJournal: 'New Journal Entry',
+      recordExpense: 'Record Expense',
+      dashboard: 'Dashboard',
+      chartOfAccounts: 'Chart of Accounts',
+      journalEntries: 'Journal Entries',
+      generalLedger: 'General Ledger',
+      receivables: 'Accounts Receivable',
+      payables: 'Accounts Payable',
+      expenses: 'Expenses',
+      cashBank: 'Cash & Bank',
+      taxes: 'Taxes',
+      reports: 'Financial Reports'
+    },
+    hrm: {
+      title: 'Human Resources & Employee Management',
+      subtitle: 'Attendance, Custom Shifts, Monthly Payroll, Leave Workflows & 360° Employee Profiles',
+      addEmployee: 'Add Employee',
+      dashboard: 'HR Dashboard',
+      directory: 'Directory',
+      attendance: 'Attendance',
+      shifts: 'Shifts',
+      payroll: 'Payroll',
+      leave: 'Leaves',
+      performance: 'Performance'
+    },
+    crm: {
+      title: 'CRM & Customer Loyalty System',
+      subtitle: 'Customer profiles, wallet balances, reward points, coupons & broadcast messaging',
+      addCustomer: 'Add Customer',
+      customersList: 'Customers List',
+      wallet: 'Digital Wallet',
+      coupons: 'Coupons & Promos',
+      loyalty: 'Loyalty Program',
+      analytics: 'Customer Analytics'
+    },
+    settings: {
+      title: 'System & Branch Settings',
+      subtitle: 'Configure store parameters, receipt printers, tax rules, currency & backups',
+      general: 'General Info',
+      posAndPrint: 'POS & Printing',
+      taxesAndCurrency: 'Tax & Currency',
+      notifications: 'Alerts & Notifications',
+      backupAndSync: 'Database Backup',
+      saveSettings: 'Save Configuration'
+    },
+    ai: {
+      title: 'AI Enterprise Intelligence Platform',
+      subtitle: 'Real-time financial analytics, operational bottleneck detection & strategic CEO recommendations',
+      financialAdvisor: 'Financial Advisor',
+      operationsManager: 'Operations Manager',
+      ceoCommand: 'CEO Command Center',
+      askAI: 'Ask AI Manager'
+    },
+    dashboard: {
+      ownerTitle: 'Owner & Executive Dashboard',
+      executiveSuite: 'Executive Suite',
+      enterpriseVisibility: 'Full Enterprise Visibility',
+      ownerSubtitle: 'Real-time multi-branch financial intelligence, profit margins, stock valuation, and operational performance.',
+      healthScore: 'Business Health Score',
+      netProfitMargin: 'Net Profit Margin',
+      foodCogs: 'Food COGS',
+      totalSales: 'Total Sales',
+      todayRevenue: "Today's Revenue",
+      todayProfit: "Today's Profit",
+      monthlyProfit: 'Monthly Profit',
+      totalExpenses: 'Total Expenses',
+      cashFlow: 'Cash Flow & Liquidity',
+      totalOrders: 'Total Orders',
+      customerGrowth: 'Customer Growth',
+      inventoryStatus: 'Inventory Status Overview',
+      manageInventory: 'Manage Inventory →',
+      totalItems: 'Total Items',
+      healthyStock: 'Healthy Stock',
+      lowStockAlerts: 'Low Stock Alerts',
+      employeeLeaderboard: 'Employee Performance Leaderboard',
+      staffPortal: 'Staff Portal →',
+      managerTitle: 'Restaurant Operations & Manager Dashboard',
+      shiftOperations: 'Shift Operations',
+      managerControlRoom: 'Manager Control Room',
+      managerSubtitle: 'Real-time kitchen order queue, line chef station load, delivery status, staff attendance, and stock alerts.',
+      openPos: 'Open POS Terminal',
+      activeOrdersQueue: 'Active Orders Queue',
+      dailyRevenue: 'Daily Revenue',
+      kitchenPrepItems: 'Kitchen Prep Items',
+      deliveryOrders: 'Delivery Orders',
+      accountantTitle: 'Accounting & Financial Performance Dashboard',
+      financialControl: 'Financial Control & CPA Suite',
+      generalLedgerAudit: 'General Ledger & Audit Trail',
+      accountantSubtitle: 'Audit P&L Statements, revenue recognition, supplier accounts payable, bank reconciliation, and estimated tax liabilities.',
+      fullLedger: 'Full Financial Ledger',
+      netRevenue: 'Net Revenue',
+      grossProfit: 'Gross Profit',
+      netOperatingProfit: 'Net Operating Profit',
+      operatingExpenses: 'Operating Expenses',
+      estVatPayable: 'Est. VAT Payable (5%)',
+      cashierTitle: 'Front Counter Cashier & POS Terminal',
+      terminalActive: 'Terminal Active',
+      shiftCashierCounter: 'Shift Cashier Counter',
+      cashierSubtitle: 'Monitor real-time customer settlement queue, payment method totals, and shift register totals.',
+      launchPos: 'Launch POS Checkout',
+      newOrdersQueue: 'New Orders Queue',
+      completedOrdersToday: 'Completed Orders Today',
+      dailySalesTotal: 'Daily Sales Total',
+      kitchenTitle: 'Kitchen Preparation Station Display',
+      lineChefKds: 'Line Chef KDS',
+      kitchenDisplayScreen: 'Kitchen Display Screen',
+      kitchenSubtitle: 'Real-time ticket queue for line chefs, station load balancing, and preparation time tracking.',
+      stationsActive: 'STATIONS ACTIVE',
+      preparingOnStove: 'Preparing on Stove/Grill',
+      readyForPickup: 'Ready for Pickup',
+      delayedAlerts: 'Delayed Prep Alerts',
+      adminTitle: 'System Administration Dashboard',
+      systemAdmin: 'System Admin',
+      fullRbac: 'Full RBAC Architecture Access',
+      adminSubtitle: 'Manage enterprise access control, user accounts, security rules, and database collections.',
+      openAdminControl: 'Open Admin Control Panel →',
+      waiterTitle: 'Dining Room Waiter Station',
+      floorStaff: 'Floor Staff',
+      waiterSubtitle: 'Track active dining tables, ready dishes from kitchen, and floor service requests.',
+      createTableOrder: '+ Create Table Order'
     }
   },
   ar: {
@@ -451,26 +795,26 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       statusActive: 'نشط',
       statusSuspended: 'معلق',
       statusPending: 'قيد الانتظار',
-      triggerResetEmail: 'إرسال رابط إعادة كلمة المرور',
+      triggerResetEmail: 'إرسال رابط استعادة المرور',
       resetEmailTriggered: 'تم إرسال رابط إعادة التعيين بنجاح!',
-      userCreated: 'تم إضافة المستخدم بنجاح!',
+      userCreated: 'تم إنشاء الحساب الجديد بنجاح!',
       userUpdated: 'تم تحديث حساب المستخدم!',
-      searchUsers: 'البحث عن مستخدمين بالاسم أو البريد...'
+      searchUsers: 'البحث عن مستخدم بالاسم أو البريد...'
     },
     rolePermissions: {
       title: 'مصفوفة صلاحيات الأدوار',
-      subtitle: 'جدول الصلاحيات الكامل لكافة الأدوار الثمانية في النظام',
-      capability: 'الوظيفة / الصلاحية',
+      subtitle: 'الصلاحيات الدقيقة لكل من الأدوار الثمانية بالنظام',
+      capability: 'الصلاحية / الوصول للنظام',
       adminPanel: 'لوحة الإدارة العليا',
-      posTerminal: 'شاشة نقطة البيع (POS)',
+      posTerminal: 'نقطة البيع (POS)',
       kitchenDisplay: 'شاشة المطبخ (KDS)',
       rawInventory: 'إدارة المخزون والمواد الخام',
       financialLedger: 'السجل المالي والمصروفات',
       staffManagement: 'إدارة الموظفين والموردين',
-      auditReports: 'التقارير المالية وتصدير البيانات',
-      aiFinancialAdvisor: 'المستشار المالي وقائد AI CEO',
+      auditReports: 'التقارير المالية والتصدير',
+      aiFinancialAdvisor: 'المستشار المالي الذكي والرئيس التنفيذي',
       manageBranchSettings: 'إدارة إعدادات الفرع',
-      manageUserAccounts: 'إدارة حسابات المستخدمين والأدوار'
+      manageUserAccounts: 'إدارة حسابات المستخدمين'
     },
     activityLogs: {
       title: 'سجل النشاطات والمراجعة',
@@ -480,6 +824,177 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       details: 'التفاصيل',
       timestamp: 'الوقت والتاريخ',
       noLogs: 'لا توجد سجلات نشاط مسجلة حتى الآن.'
+    },
+    pos: {
+      title: 'نقطة البيع الكاشير (POS)',
+      subtitle: 'محطة البيع المباشرة المرتبطة بالمخزون والمطبخ وقاعدة البيانات',
+      heldOrders: 'الطلبات المعلقة',
+      cashier: 'الكاشير',
+      searchPlaceholder: 'البحث عن وجبة، رمز SKU، أو الباركود...',
+      allCategories: 'الكل',
+      outOfStock: 'غير متوفر',
+      leftInStock: 'المتبقي',
+      currentCart: 'سلة الطلب الحالي',
+      itemsCount: 'عناصر',
+      dineIn: 'محلي',
+      takeout: 'سفري',
+      delivery: 'توصيل',
+      online: 'أونلاين',
+      reserve: 'حجز',
+      customerLabel: 'العميل',
+      walkInGuest: 'عميل عابر',
+      tableLabel: 'الطاولة',
+      noTableNeeded: 'بدون طاولة',
+      cartEmpty: 'السلة فارغة حالياً',
+      selectDishes: 'اختر الوجبات من القائمة لإضافتها للطلب',
+      applyDiscount: 'تطبيق خصم',
+      subtotal: 'المجموع الفرعي',
+      vat: 'ضريبة القيمة المضافة',
+      discount: 'الخصم',
+      grandTotal: 'المبلغ الإجمالي',
+      holdButton: 'تعليق',
+      payButton: 'دفع'
+    },
+    orders: {
+      title: 'مركز إدارة الطلبات والمطبخ',
+      subtitle: 'متابعة الطلبات المباشرة وشاشة KDS وإدارة الطاولات',
+      pipeline: 'سلسلة الطلبات',
+      kds: 'شاشة المطبخ (KDS)',
+      tables: 'مخطط الطاولات',
+      customerLog: 'سجل العملاء',
+      allOrders: 'جميع الطلبات',
+      orderDetails: 'تفاصيل الطلب',
+      editOrder: 'تعديل الطلب',
+      completed: 'مكتمل',
+      inKitchen: 'في المطبخ',
+      ready: 'جاهز',
+      onDelivery: 'قيد التوصيل',
+      cancelled: 'ملغى',
+      received: 'مستلم'
+    },
+    accounting: {
+      title: 'النظام المحاسبي والمالي',
+      subtitle: 'سجل القيد المزدوج، الدفاتر العامة، المقبوضات والمقيدين والمصروفات',
+      newJournal: 'قيد يومية جديد',
+      recordExpense: 'تسجيل مصروف',
+      dashboard: 'لوحة التحكم المالية',
+      chartOfAccounts: 'دليل الحسابات',
+      journalEntries: 'قيود اليومية',
+      generalLedger: 'دفتر الأستاذ العام',
+      receivables: 'الحسابات المدينة',
+      payables: 'الحسابات الدائنة',
+      expenses: 'المصروفات',
+      cashBank: 'النقد والبنوك',
+      taxes: 'الضرائب والزكاة',
+      reports: 'التقارير المالية'
+    },
+    hrm: {
+      title: 'إدارة الموارد البشرية والموظفين',
+      subtitle: 'الحضور والغياب، ورديات العمل، الرواتب الشهرية والإجازات',
+      addEmployee: 'إضافة موظف جديد',
+      dashboard: 'لوحة الموارد البشرية',
+      directory: 'دليل الموظفين',
+      attendance: 'سجل الحضور',
+      shifts: 'ورديات العمل',
+      payroll: 'مسير الرواتب',
+      leave: 'طلبات الإجازات',
+      performance: 'تقييم الأداء'
+    },
+    crm: {
+      title: 'إدارة العملاء ونظام الولاء (CRM)',
+      subtitle: 'ملفات العملاء، المحفظة الرقمية، نقاط المكافآت والكوبونات',
+      addCustomer: 'إضافة عميل',
+      customersList: 'قائمة العملاء',
+      wallet: 'المحفظة الرقمية',
+      coupons: 'الكوبونات والعروض',
+      loyalty: 'برنامج الولاء',
+      analytics: 'تحليلات سلوك العملاء'
+    },
+    settings: {
+      title: 'إعدادات النظام والفرع',
+      subtitle: 'إعداد بيانات المتجر، طابعات الفواتير، الضرائب والعملة والملاحظات',
+      general: 'البيانات العامة',
+      posAndPrint: 'نقطة البيع الطباعة',
+      taxesAndCurrency: 'الضرائب والعملة',
+      notifications: 'التنبيهات والرسائل',
+      backupAndSync: 'النسخ الاحتياطي',
+      saveSettings: 'حفظ الإعدادات'
+    },
+    ai: {
+      title: 'منصة الذكاء الاصطناعي وإدارة القرار',
+      subtitle: 'تحليلات مالية متقدمة، كشف اختناقات العمليات وتوصيات الرئيس التنفيذي',
+      financialAdvisor: 'المستشار المالي',
+      operationsManager: 'مدير العمليات',
+      ceoCommand: 'مركز قيادة CEO',
+      askAI: 'مساعد الذكاء الاصطناعي'
+    },
+    dashboard: {
+      ownerTitle: 'لوحة تحكم المالك والإدارة العليا',
+      executiveSuite: 'الجناح التنفيذي',
+      enterpriseVisibility: 'رؤية شاملة للمؤسسة',
+      ownerSubtitle: 'التحليلات المالية متعددة الفروع وهامش الربح وتقييم المخزون والأداء التشغيلي في الوقت الفعلي.',
+      healthScore: 'مؤشر صحة الأعمال',
+      netProfitMargin: 'هامش صافي الربح',
+      foodCogs: 'تكلفة الأطعمة المباعة',
+      totalSales: 'إجمالي المبيعات',
+      todayRevenue: 'إيرادات اليوم',
+      todayProfit: 'أرباح اليوم',
+      monthlyProfit: 'أرباح الشهر',
+      totalExpenses: 'إجمالي المصروفات',
+      cashFlow: 'التدفق النقدي والسيولة',
+      totalOrders: 'إجمالي الطلبات',
+      customerGrowth: 'نمو قاعدة العملاء',
+      inventoryStatus: 'نظرة عامة على حالة المخزون',
+      manageInventory: 'إدارة المخزون →',
+      totalItems: 'إجمالي العناصر',
+      healthyStock: 'مخزون جيد',
+      lowStockAlerts: 'تنبيهات نقص المخزون',
+      employeeLeaderboard: 'لائحة متصدري أداء الموظفين',
+      staffPortal: 'بوابة الموظفين →',
+      managerTitle: 'لوحة تحكم مدير العمليات والمطعم',
+      shiftOperations: 'عمليات المناوبة',
+      managerControlRoom: 'غرفة تحكم المدير',
+      managerSubtitle: 'متابعة طلبات المطبخ، ضغط المحطات، حالة التوصيل، حضور الموظفين وتنبيهات المخزون.',
+      openPos: 'فتح نقطة البيع (POS)',
+      activeOrdersQueue: 'قائمة الطلبات النشطة',
+      dailyRevenue: 'الإيراد اليومي',
+      kitchenPrepItems: 'عناصر التحضير بالمطبخ',
+      deliveryOrders: 'طلبات التوصيل',
+      accountantTitle: 'لوحة المحاسبة والأداء المالي',
+      financialControl: 'جناح الرقابة المالية والمحاسبة',
+      generalLedgerAudit: 'دفتر التدقيق والسجل العام',
+      accountantSubtitle: 'مراجعة قوائم الأرباح والخسائر، ذمم الموردين، المطابقة المصرفية والالتزامات الضريبية.',
+      fullLedger: 'السجل المالي الكامل',
+      netRevenue: 'صافي الإيرادات',
+      grossProfit: 'مجمل الربح',
+      netOperatingProfit: 'صافي الربح التشغيلي',
+      operatingExpenses: 'المصروفات التشغيلية',
+      estVatPayable: 'ضريبة القيمة المضافة المقدرة (5%)',
+      cashierTitle: 'لوحة الكاشير ونقطة البيع',
+      terminalActive: 'المحطة نشطة',
+      shiftCashierCounter: 'كاونتر الكاشير',
+      cashierSubtitle: 'متابعة طلبات تحصيل العملاء، طرق الدفع وإجمالي صندوق المناوبة.',
+      launchPos: 'فتح شاشة الدفع والبيع',
+      newOrdersQueue: 'قائمة الطلبات الجديدة',
+      completedOrdersToday: 'الطلبات المكتملة اليوم',
+      dailySalesTotal: 'إجمالي مبيعات اليوم',
+      kitchenTitle: 'شاشة المطبخ وإعداد الوجبات (KDS)',
+      lineChefKds: 'شاشة الطهاة KDS',
+      kitchenDisplayScreen: 'شاشة عرض المطبخ',
+      kitchenSubtitle: 'تتبع تذاكر الطلبات للطهاة، توزيع الأحمال على المحطات وزمن التحضير.',
+      stationsActive: 'المحطات نشطة',
+      preparingOnStove: 'جاري التحضير على الموقد',
+      readyForPickup: 'جاهز للتسليم',
+      delayedAlerts: 'تنبيهات التأخير',
+      adminTitle: 'لوحة إدارة النظام العليا',
+      systemAdmin: 'مدير النظام',
+      fullRbac: 'صلاحيات هيكلية كاملة',
+      adminSubtitle: 'إدارة صلاحيات الوصول، حسابات المستخدمين، قواعد الأمان وقواعد البيانات.',
+      openAdminControl: 'فتح لوحة الإدارة →',
+      waiterTitle: 'محطة النادل وصالة الطعام',
+      floorStaff: 'طاقم صالة الطعام',
+      waiterSubtitle: 'متابعة الطاولات النشطة، الوجبات الجاهزة من المطبخ وطلبات الصالة.',
+      createTableOrder: '+ إنشاء طلب طاولة'
     }
   },
   so: {
@@ -640,6 +1155,177 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       details: 'Faahfaahinta',
       timestamp: 'Waqtiga',
       noLogs: 'Weli ma jiraan log-yo dhaqdhaqaaq.'
+    },
+    pos: {
+      title: 'Kombuyuutarka Bixinta (POS)',
+      subtitle: 'Bixinta tooska ah ee la xiriirta alaabta iyo jikada',
+      heldOrders: 'Dalabaadka La Hakiyay',
+      cashier: 'Kaashiyaha',
+      searchPlaceholder: 'Raadi cunto, SKU ama barcode...',
+      allCategories: 'Dhamaan',
+      outOfStock: 'Waa Dhamaatay',
+      leftInStock: 'Lagu Leeyahay',
+      currentCart: 'Sallada Hadda',
+      itemsCount: 'waxyaabood',
+      dineIn: 'Halkan ku cun',
+      takeout: 'Kaxayso',
+      delivery: 'Kugu soo dir',
+      online: 'Online',
+      reserve: 'Boos qabso',
+      customerLabel: 'Macaamilka',
+      walkInGuest: 'Macaamil Caadi Ah',
+      tableLabel: 'Miiska',
+      noTableNeeded: 'Miis looma baahna',
+      cartEmpty: 'Salladu waa faaruq',
+      selectDishes: 'Ka dooro cuntada menu-ga si aad u samayso order',
+      applyDiscount: 'Sii Dhimis',
+      subtotal: 'Warta Hore',
+      vat: 'Canshuur (VAT)',
+      discount: 'Dhimis',
+      grandTotal: 'Warta Guud',
+      holdButton: 'Haki',
+      payButton: 'Bixi'
+    },
+    orders: {
+      title: 'Xarunta Dalabaadka & Jikada',
+      subtitle: 'La socodka dalabaadka, shaashada KDS iyo miasada',
+      pipeline: 'List-ga Dalabaadka',
+      kds: 'Shaashada Jikada',
+      tables: 'Miasada',
+      customerLog: 'Macaamiisha',
+      allOrders: 'Dhamaan Dalabaadka',
+      orderDetails: 'Faahfaahinta Dalabka',
+      editOrder: 'Baddal Dalabka',
+      completed: 'Dhameystiran',
+      inKitchen: 'Jikada',
+      ready: 'Waa Diyaar',
+      onDelivery: 'Waddada',
+      cancelled: 'La Baajiyay',
+      received: 'La Helay'
+    },
+    accounting: {
+      title: 'Nidaamka Xisaabaadka & Maaliyadda',
+      subtitle: 'Xisaabinta laba-geesoodka ah, warbixinada, bangiga iyo kharashyada',
+      newJournal: 'Waraaq Xisaabeed Cusub',
+      recordExpense: 'Qor Kharash',
+      dashboard: 'Dashboard-ka Xisaabta',
+      chartOfAccounts: 'Sallada Xisaabaadka',
+      journalEntries: 'Waraaqaha Maalinlaha ah',
+      generalLedger: 'Buugga Guud ee Xisaabta',
+      receivables: 'Lagu leeyahay (AR)',
+      payables: 'Lagu leeyahay (AP)',
+      expenses: 'Kharashyada',
+      cashBank: 'Lacagta & Bangiga',
+      taxes: 'Canshuuraha',
+      reports: 'Warbixinada Maaliyadda'
+    },
+    hrm: {
+      title: 'Maamulka Shaqaalaha & HR',
+      subtitle: 'Iimaanshada, shifts-ka, mushaaraadka, fasaxyada iyo profiles-ka',
+      addEmployee: 'Kudar Shaqaale',
+      dashboard: 'HR Dashboard',
+      directory: 'Duhurta Shaqaalaha',
+      attendance: 'Iimaanshada',
+      shifts: 'Shifts-ka',
+      payroll: 'Mushaaraadka',
+      leave: 'Fasaxyada',
+      performance: 'Qiimaynta'
+    },
+    crm: {
+      title: 'CRM & Maamulka Macaamiisha',
+      subtitle: 'Xogta macaamiisha, boorsada lacagta, dhibcaha iyo coupons-ka',
+      addCustomer: 'Kudar Macaamil',
+      customersList: 'List-ga Macaamiisha',
+      wallet: 'Boorsada Lacagta',
+      coupons: 'Coupons & Promos',
+      loyalty: 'Program-ka Loyalty-ga',
+      analytics: 'Analytics-ka Macaamiisha'
+    },
+    settings: {
+      title: 'Habaynta Nidaamka & Faraca',
+      subtitle: 'Habaynta maqaayada, risiidhada, canshuuraha iyo kaydka',
+      general: 'Xogta Guud',
+      posAndPrint: 'POS & Daabacaadda',
+      taxesAndCurrency: 'Canshuuraha & Lacagta',
+      notifications: 'Digiinaha',
+      backupAndSync: 'Kaydka Firebase',
+      saveSettings: 'Keydi Habaynta'
+    },
+    ai: {
+      title: 'Garaadka Artificial-ka ee Ganacsiga',
+      subtitle: 'Analytics-ka maaliyadda, bottleneck-yada iyo talooyinka CEO-ga',
+      financialAdvisor: 'La-taliyaha Maaliyadda',
+      operationsManager: 'Maamulaha Hawlaha',
+      ceoCommand: 'Xarunta CEO Command',
+      askAI: 'Waydiiso Garaadka AI'
+    },
+    dashboard: {
+      ownerTitle: 'Dashboard-ka Mulkiilaha & Maamulka Guud',
+      executiveSuite: 'Qaybta Maamulka',
+      enterpriseVisibility: 'Muuqalka Buuxa ee Ganacsiga',
+      ownerSubtitle: 'Falanqaynta maaliyadda, faa\'iidada, qiimaha stock-ka iyo waxqabadka waqtiga dhabta ah.',
+      healthScore: 'Stooraha Caafimaadka Ganacsiga',
+      netProfitMargin: 'Faa\'iidada Net-ka %',
+      foodCogs: 'Qiimaha Cuntada (COGS)',
+      totalSales: 'Wadarta Sales-ka',
+      todayRevenue: 'Dakhliga Maanta',
+      todayProfit: 'Faa\'iidada Maanta',
+      monthlyProfit: 'Faa\'iidada Bisha',
+      totalExpenses: 'Wadarta Kharashka',
+      cashFlow: 'Cash Flow & Liquidity',
+      totalOrders: 'Wadarta Dalabaadka',
+      customerGrowth: 'Korriinka Macaamiisha',
+      inventoryStatus: 'Nidaamka Stock-ka Overview',
+      manageInventory: 'Maamul Inventory-ga →',
+      totalItems: 'Wadarta Cuntooyinka',
+      healthyStock: 'Stock Wacan',
+      lowStockAlerts: 'Digiinaha Stock-ka Chiy',
+      employeeLeaderboard: 'Kala Sarreynta Shaqaalaha',
+      staffPortal: 'Portal-ka Shaqaalaha →',
+      managerTitle: 'Dashboard-ka Maamulaha Maqaayada',
+      shiftOperations: 'Shaqada Shift-ka',
+      managerControlRoom: 'Qolka Control-ka Maamulaha',
+      managerSubtitle: 'Qaybta dalabaadka jikada, habka delivery-ga, imaatinka shaqaalaha iyo stock-ka.',
+      openPos: 'Fur POS Terminal-ka',
+      activeOrdersQueue: 'Dalabaadka Safka Inoo Jira',
+      dailyRevenue: 'Dakhliga Maanta',
+      kitchenPrepItems: 'Cuntooyinka Jikada ku jira',
+      deliveryOrders: 'Dalabaadka Delivery-ga',
+      accountantTitle: 'Dashboard-ka Xisaabaadka & Maaliyadda',
+      financialControl: 'Xakameynta Maaliyadda & CPA',
+      generalLedgerAudit: 'Buugga Xisaabaadka & Audit-ka',
+      accountantSubtitle: 'Baaritaanka P&L, xisaabaadka alaab-qeybiyeyaasha, bangiga iyo canshuuraha.',
+      fullLedger: 'Buugga Xisaabaadka Buuxa',
+      netRevenue: 'Dakhliga Net-ka',
+      grossProfit: 'Faa\'iidada Gross-ka',
+      netOperatingProfit: 'Faa\'iidada Hawlgalka',
+      operatingExpenses: 'Kharashka Hawlgalka',
+      estVatPayable: 'Canshuurta VAT-ka (5%)',
+      cashierTitle: 'Dashboard-ka Cashier-ka & POS Terminal-ka',
+      terminalActive: 'Terminal-ku waa Active',
+      shiftCashierCounter: 'Counter-ka Cashier-ka',
+      cashierSubtitle: 'Lasocodka safka macaamiisha, hababka lacag bixinta iyo register-ka.',
+      launchPos: 'Fur POS Checkout-ka',
+      newOrdersQueue: 'Dalabaadka Cusub',
+      completedOrdersToday: 'Dalabaadka Maanta Dhameystirmay',
+      dailySalesTotal: 'Wadarta Sales-ka Maanta',
+      kitchenTitle: 'Dashboard-ka Jikada & Diyaarinta Cuntada (KDS)',
+      lineChefKds: 'KDS-ka Jikada',
+      kitchenDisplayScreen: 'Daaqada Jikada',
+      kitchenSubtitle: 'Safka dalabaadka jikada, noocyada cuntada iyo waqtiga diyaarinta.',
+      stationsActive: 'Jikadu waa Active',
+      preparingOnStove: 'Diyaarinta Shooladda/Shiilka',
+      readyForPickup: 'Diyaar u ah Qaadashada',
+      delayedAlerts: 'Digiinaha Daaha',
+      adminTitle: 'Dashboard-ka Maamulaha Guud ee System-ka',
+      systemAdmin: 'Maamulaha System-ka',
+      fullRbac: 'Access-ka Buuxa ee System-ka',
+      adminSubtitle: 'Maamulida xuquuqda, akoonnada shaqaalaha iyo amaanka.',
+      openAdminControl: 'Fur Admin Control Panel →',
+      waiterTitle: 'Dashboard-ka Waiter-ka & Hoolka',
+      floorStaff: 'Shaqaalaha Hoolka',
+      waiterSubtitle: 'Lasocodka miisaska, cuntooyinka jikada ka soo baxay iyo adeegga hoolka.',
+      createTableOrder: '+ Fur Dalab Miis'
     }
   }
 };
