@@ -6,7 +6,6 @@ import { GoogleGenAI } from '@google/genai';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -138,9 +137,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Restaurant ERP & AI Business Assistant server running on port ${PORT}`);
-  });
+  export default app;
 }
 
 startServer();
