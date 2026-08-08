@@ -263,7 +263,9 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
 
     const fullOrder = await createOrderFirestore({
       orderNumber,
-      customerId: selectedCustomer?.id,
+      ...(selectedCustomer?.id
+  ? { customerId: selectedCustomer.id }
+  : {}),
       customerName: payload.customerName,
       customerPhone: payload.customerPhone,
       orderType: payload.orderType,

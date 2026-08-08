@@ -26,17 +26,23 @@ export class FirestoreOrderRepository implements IOrderRepository {
     }
   }
 
-  async createOrder(order: Partial<Order>): Promise<string> {
-    try {
-      const docRef = await addDoc(collection(db, COLLECTIONS.ORDERS), {
-        ...order,
-        createdAt: new Date().toISOString()
-      });
-      return docRef.id;
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, COLLECTIONS.ORDERS);
-    }
+ async createOrder(order: Partial<Order>): Promise<string> {
+  try {
+    const cleanOrder = Object.fromEntries(
+      Object.entries(order).filter(([_, value]) => value !== undefined)
+    );
+
+    const docRef = await addDoc(collection(db, COLLECTIONS.ORDERS), {
+      ...cleanOrder,
+      createdAt: new Date().toISOString()
+    });
+
+    return docRef.id;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, COLLECTIONS.ORDERS);
+    throw err;
   }
+}
 
   async updateOrderStatus(id: string, status: Order['status']): Promise<void> {
     try {
