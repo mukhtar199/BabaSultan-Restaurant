@@ -113,7 +113,7 @@ export const BIAnalyticsDashboard: React.FC<BIAnalyticsDashboardProps> = ({
     .filter((o) => new Date(o.createdAt || 0) >= monthAgo)
     .reduce((s, o) => s + o.totalAmount, 0);
 
-  const yearStart = new Date(now.getFullYear(), 0, 1);
+  const yearStart = new Date(new Date().getFullYear(), 0, 1);
   const yearlySales = completedOrders
     .filter((o) => new Date(o.createdAt || 0) >= yearStart)
     .reduce((s, o) => s + o.totalAmount, 0);

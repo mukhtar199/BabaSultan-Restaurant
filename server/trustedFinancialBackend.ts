@@ -549,23 +549,14 @@ async function executePosCheckoutRestFallback(
       t.branchId === targetBranchId
     );
     if (branchTaxes.length > 0) {
-      const primaryTax = branchTaxes.find((t: any) => t.isPrimary === true || t.isDefault === true || t.taxType === 'vat' || t.taxType === 'sales_tax') || branchTaxes[0];
-      const r = Number(primaryTax.rate || 0);
-      configuredTaxRate = r > 1 ? r / 100 : r;
-    } else {
-      const globalDefaultTaxes = (taxesDocs || []).filter((t: any) => 
-        (t.isActive === true || t.status === 'Active' || t.status === 'active') && 
-        (!t.branchId || t.branchId === 'all') && 
-        (t.isDefault === true || t.isPrimary === true)
-      );
-      if (globalDefaultTaxes.length > 0) {
-        const defaultTax = globalDefaultTaxes[0];
-        const r = Number(defaultTax.rate || 0);
+      const primaryTax = branchTaxes.find((t: any) => t.isPrimary === true || t.isDefault === true || t.taxType === 'vat' || t.taxType === 'sales_tax');
+      if (primaryTax && typeof primaryTax.rate === 'number') {
+        const r = Number(primaryTax.rate || 0);
         configuredTaxRate = r > 1 ? r / 100 : r;
-      } else if (!isTaxExplicitlyEnabled && (!taxesDocs || taxesDocs.length === 0)) {
-        // No tax policy configured in database and tax not explicitly required on branch -> tax is optional/0
-        configuredTaxRate = 0;
       }
+    } else if (!isTaxExplicitlyEnabled && (!taxesDocs || taxesDocs.length === 0)) {
+      // No tax policy configured and tax not enabled on branch -> tax is optional/0
+      configuredTaxRate = 0;
     }
   }
 
@@ -637,9 +628,6 @@ async function executePosCheckoutRestFallback(
         driverEarningsAmount = Math.max(0, Number(branchDoc.driverEarningsAmount || 0));
       }
     }
-    if (driverEarningsAmount === 0 && orderData.driverEarningsAmount && orderData.driverEarningsEnabled !== false) {
-      driverEarningsAmount = Math.max(0, Number(orderData.driverEarningsAmount || 0));
-    }
   } else {
     // Pickup or Dine-in: strictly 0 delivery fee
     deliveryFee = 0;
@@ -663,17 +651,23 @@ async function executePosCheckoutRestFallback(
     throw new Error(`Invalid payment method "${rawPayMethod}". Allowed methods: ${ALLOWED_PAYMENT_METHODS.join(', ')}.`);
   }
 
-  const rawPayStatus = String(orderData.paymentStatus || '').toLowerCase();
-  const isCreditOrUnpaid = rawPayMethod === 'credit' || rawPayMethod === 'unpaid' || orderData.isCredit === true || rawPayStatus === 'unpaid';
-
   let isPaidSale = false;
   let finalPayMethod = rawPayMethod;
   let paidTenderAmount = 0;
 
-  if (isCreditOrUnpaid) {
+  if (rawPayMethod === 'credit') {
+    if (!orderData.customerId && !orderData.customerName) {
+      throw new Error('Credit order rejected: A valid customer name or ID is required for credit sales.');
+    }
     isPaidSale = false;
-    finalPayMethod = rawPayMethod === 'unpaid' ? 'unpaid' : 'credit';
+    finalPayMethod = 'credit';
+    paidTenderAmount = 0;
+  } else if (rawPayMethod === 'unpaid') {
+    isPaidSale = false;
+    finalPayMethod = 'unpaid';
+    paidTenderAmount = 0;
   } else {
+    // rawPayMethod in ['cash', 'card', 'bank', 'mobile_money']
     const providedPaid = orderData.paidAmount ?? orderData.paymentAmount ?? orderData.amountTendered;
     if (providedPaid === undefined || providedPaid === null) {
       throw new Error(`Missing payment amount for paid payment method "${rawPayMethod}". Payment amount must be explicitly provided.`);
@@ -689,6 +683,7 @@ async function executePosCheckoutRestFallback(
       throw new Error(`Overpayment rejected: Payment amount ($${numPaid.toFixed(2)}) exceeds total amount ($${realTotalAmount.toFixed(2)}). Exact payment required, no change allowed.`);
     }
     isPaidSale = true;
+    finalPayMethod = rawPayMethod;
     paidTenderAmount = realTotalAmount;
   }
 
@@ -867,25 +862,28 @@ async function executePosCheckoutRestFallback(
   const jeId = `je-${Date.now()}-${randomUUID().substring(0, 8)}`;
   const entryNumber = `JE-POS-${orderNumber}`;
   const payMethod = fullOrder.paymentMethod || 'cash';
+  let paymentAccountId = 'acc_cash';
   let paymentAccountCode = '1010';
   let paymentAccountName = 'Cash on Hand (Register)';
 
-  if (fullOrder.paymentStatus === 'unpaid') {
-    paymentAccountCode = '1040';
+  if (fullOrder.paymentStatus === 'unpaid' || payMethod === 'credit') {
+    paymentAccountId = 'acc_ar';
+    paymentAccountCode = '1200';
     paymentAccountName = 'Accounts Receivable (AR)';
   } else if (payMethod === 'card' || payMethod === 'bank' || payMethod === 'mobile_money') {
+    paymentAccountId = 'acc_bank';
     paymentAccountCode = '1020';
     paymentAccountName = 'Main Bank Account (Premier Bank)';
   }
 
   const journalLines = [
     {
-      accountId: fullOrder.paymentStatus === 'unpaid' ? 'acc_ar' : 'acc_cash_bank',
+      accountId: paymentAccountId,
       accountCode: paymentAccountCode,
       accountName: paymentAccountName,
       debit: realTotalAmount,
       credit: 0,
-      memo: fullOrder.paymentStatus === 'unpaid' ? `Credit Sale AR Order #${orderNumber}` : `POS Sales Receipt Order #${orderNumber}`
+      memo: (fullOrder.paymentStatus === 'unpaid' || payMethod === 'credit') ? `Credit Sale AR Order #${orderNumber}` : `POS Sales Receipt Order #${orderNumber}`
     },
     {
       accountId: 'acc_cogs',
@@ -1613,25 +1611,28 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
       const entryNumber = `JE-POS-${orderNumber}`;
       const payMethod = fullOrder.paymentMethod || 'cash';
       
+      let paymentAccountId = 'acc_cash';
       let paymentAccountCode = '1010';
       let paymentAccountName = 'Cash on Hand (Register)';
 
-      if (fullOrder.paymentStatus === 'unpaid') {
-        paymentAccountCode = '1040';
+      if (fullOrder.paymentStatus === 'unpaid' || payMethod === 'credit') {
+        paymentAccountId = 'acc_ar';
+        paymentAccountCode = '1200';
         paymentAccountName = 'Accounts Receivable (AR)';
       } else if (payMethod === 'card' || payMethod === 'bank' || payMethod === 'mobile_money') {
+        paymentAccountId = 'acc_bank';
         paymentAccountCode = '1020';
         paymentAccountName = 'Main Bank Account (Premier Bank)';
       }
 
       const journalLines = [
         {
-          accountId: fullOrder.paymentStatus === 'unpaid' ? 'acc_ar' : 'acc_cash_bank',
+          accountId: paymentAccountId,
           accountCode: paymentAccountCode,
           accountName: paymentAccountName,
           debit: realTotalAmount,
           credit: 0,
-          memo: fullOrder.paymentStatus === 'unpaid' ? `Credit Sale AR Order #${orderNumber}` : `POS Sales Receipt Order #${orderNumber}`
+          memo: (fullOrder.paymentStatus === 'unpaid' || payMethod === 'credit') ? `Credit Sale AR Order #${orderNumber}` : `POS Sales Receipt Order #${orderNumber}`
         },
         {
           accountId: 'acc_cogs',
@@ -1944,6 +1945,8 @@ export async function handleOrderCancellation(req: express.Request, res: express
         transaction.update(kitchenRef, { prepStatus: 'cancelled', updatedAt: timestamp });
       }
 
+      const totalAmt = Number(orderData.totalAmount || 0);
+
       // Accounting Reversal Entry (Skip financial reversal if already fully refunded through customer refund)
       if (!isAlreadyFullyRefunded) {
         const subtotal = Number(orderData.subtotal || 0);
@@ -1951,16 +1954,15 @@ export async function handleOrderCancellation(req: express.Request, res: express
         const netRev = Math.max(0, subtotal - discount);
         const tax = Number(orderData.tax || 0);
         const deliveryFeeRev = Number(orderData.deliveryFee || 0);
-        const totalAmt = Number(orderData.totalAmount || 0);
         const cogs = Number(orderData.cogs || 0);
         const payMethod = String(orderData.paymentMethod || 'cash').toLowerCase();
         const isOriginalCredit = payMethod === 'credit' || orderData.isCredit === true || orderData.isCredit === 'true';
         const isOriginalUnpaid = String(orderData.paymentStatus || '').toLowerCase() === 'unpaid' || Number(orderData.paidAmount ?? orderData.paymentAmount ?? 0) <= 0;
 
-        let paymentAccountId = 'acc_cash_bank';
+        let paymentAccountId = 'acc_cash';
         let paymentAccountCode = '1010';
         let paymentAccountName = 'Cash on Hand (Register)';
-        let paymentMemo = `Cash/Bank Refund for Cancelled Order #${orderData.orderNumber || orderId}`;
+        let paymentMemo = `Cash Refund for Cancelled Order #${orderData.orderNumber || orderId}`;
 
         if (isOriginalCredit || isOriginalUnpaid) {
           paymentAccountId = 'acc_ar';
@@ -1968,9 +1970,10 @@ export async function handleOrderCancellation(req: express.Request, res: express
           paymentAccountName = 'Accounts Receivable';
           paymentMemo = `AR Reversal for Cancelled Unpaid/Credit Order #${orderData.orderNumber || orderId}`;
         } else if (payMethod === 'bank' || payMethod === 'card' || payMethod === 'mobile_money') {
-          paymentAccountId = 'acc_cash_bank';
+          paymentAccountId = 'acc_bank';
           paymentAccountCode = '1020';
           paymentAccountName = 'Main Bank Account (Premier Bank)';
+          paymentMemo = `Bank Refund for Cancelled Order #${orderData.orderNumber || orderId}`;
         }
 
         const reversalLines = [
@@ -2301,13 +2304,16 @@ export async function handleCustomerRefund(req: express.Request, res: express.Re
       transaction.set(newRefundRef, cleanUndefined(refundDoc));
 
       // Reversal Accounting Journal Entry with proportional Tax and COGS Reversal
+      let paymentAccountId = 'acc_cash';
       let paymentAccountCode = '1010';
       let paymentAccountName = 'Cash on Hand (Register)';
 
       if (effectivePayMethod === 'credit') {
-        paymentAccountCode = '1040';
+        paymentAccountId = 'acc_ar';
+        paymentAccountCode = '1200';
         paymentAccountName = 'Accounts Receivable';
-      } else if (effectivePayMethod === 'bank' || effectivePayMethod === 'card' || effectivePayMethod === 'transfer' || effectivePayMethod === 'mobile') {
+      } else if (effectivePayMethod === 'bank' || effectivePayMethod === 'card' || effectivePayMethod === 'transfer' || effectivePayMethod === 'mobile' || effectivePayMethod === 'mobile_money') {
+        paymentAccountId = 'acc_bank';
         paymentAccountCode = '1020';
         paymentAccountName = 'Main Bank Account (Premier Bank)';
       }
@@ -2337,12 +2343,14 @@ export async function handleCustomerRefund(req: express.Request, res: express.Re
           memo: `Refund Sales Tax Reversal for Order #${orderData.orderNumber || orderId}`
         }] : []),
         {
-          accountId: 'acc_cash_bank',
+          accountId: paymentAccountId,
           accountCode: paymentAccountCode,
           accountName: paymentAccountName,
           debit: 0,
           credit: refundAmount,
-          memo: `Cash/Bank payout for Refund on Order #${orderData.orderNumber || orderId}`
+          memo: effectivePayMethod === 'credit'
+            ? `Accounts Receivable reversal for Refund on Order #${orderData.orderNumber || orderId}`
+            : `Cash/Bank payout for Refund on Order #${orderData.orderNumber || orderId}`
         },
         ...(cogsReversalComponent > 0 ? [
           {
@@ -2519,7 +2527,7 @@ export async function handleExpenseCreation(req: express.Request, res: express.R
   try {
     const result = await db.runTransaction(async (transaction) => {
       const timestamp = new Date().toISOString();
-      const dateStr = timestamp.split('T')[0];
+      const dateStr = expenseData.date || getMogadishuDateString(timestamp);
 
       const newExpenseRef = db.collection('expenses').doc();
       const fullExpenseDoc = {
@@ -2554,7 +2562,7 @@ export async function handleExpenseCreation(req: express.Request, res: express.R
           memo: `Expense: ${expenseData.description || expenseData.category}`
         },
         {
-          accountId: 'acc_cash_bank',
+          accountId: payMethod === 'cash' ? 'acc_cash' : 'acc_bank',
           accountCode: paymentAccountCode,
           accountName: paymentAccountName,
           debit: 0,
@@ -2684,10 +2692,13 @@ export async function handleSalaryDisbursement(req: express.Request, res: expres
       }
 
       const authoritativeEmployeeName = empData.name || empData.fullName || empData.displayName || salaryData.employeeName || 'Employee';
-      const effectiveBranchId = (targetBranchId && targetBranchId !== 'all') ? targetBranchId : (empBranch || 'main_branch_01');
+      const effectiveBranchId = (targetBranchId && targetBranchId !== 'all') ? targetBranchId : empBranch;
+      if (!effectiveBranchId) {
+        throw new Error('Salary disbursement rejected: Employee has no assigned branch and no target branch was specified.');
+      }
 
       const timestamp = new Date().toISOString();
-      const dateStr = timestamp.split('T')[0];
+      const dateStr = getMogadishuDateString(timestamp);
 
       const newSalaryRef = db.collection('salaries').doc();
       const fullSalaryDoc = {
@@ -2723,7 +2734,7 @@ export async function handleSalaryDisbursement(req: express.Request, res: expres
           memo: `Payroll Disbursement to ${authoritativeEmployeeName}`
         },
         {
-          accountId: 'acc_cash_bank',
+          accountId: payMethod === 'cash' ? 'acc_cash' : 'acc_bank',
           accountCode: paymentAccountCode,
           accountName: paymentAccountName,
           debit: 0,
@@ -2915,7 +2926,7 @@ export async function handlePurchaseRegistration(req: express.Request, res: expr
           memo: `Purchase of ${quantity}x ${purchaseData.itemName} from ${purchaseData.supplierName || 'Supplier'}`
         },
         {
-          accountId: creditAccountCode === '1010' ? 'acc_cash_bank' : 'acc_ap',
+          accountId: creditAccountCode === '1010' ? 'acc_cash' : 'acc_ap',
           accountCode: creditAccountCode,
           accountName: creditAccountName,
           debit: 0,
@@ -3020,7 +3031,7 @@ export async function handleBankTransaction(req: express.Request, res: express.R
   try {
     const result = await db.runTransaction(async (transaction) => {
       const timestamp = new Date().toISOString();
-      const dateStr = timestamp.split('T')[0];
+      const dateStr = bankTransactionData.date || getMogadishuDateString(timestamp);
 
       // Determine transaction type semantics
       const rawType = String(bankTransactionData.type || 'deposit').toLowerCase().trim();
@@ -3459,7 +3470,7 @@ export async function handleKitchenStatusUpdate(req: express.Request, res: expre
       console.log(`[KITCHEN STATUS STEP 1] kitchen_orders/${ticketId} ADMIN SDK READ: SUCCESS`);
 
       const kitchenData = ticketSnap.data() || {};
-      const targetBranchId = normalizeCanonicalBranchId(kitchenData.branchId || user.branchId || 'branch_hq_01');
+      const targetBranchId = normalizeCanonicalBranchId(kitchenData.branchId || user.branchId);
       if (!targetBranchId) {
         const branchMissingErr: any = new Error('Kitchen order branch identification missing. Status update rejected.');
         branchMissingErr.statusCode = 400;
@@ -4224,7 +4235,7 @@ export async function handleCreateJournalEntry(req: express.Request, res: expres
       const newEntryPayload = cleanUndefined({
         id: jeRef.id,
         entryNumber,
-        date: entryData.date || now.split('T')[0],
+        date: entryData.date || getMogadishuDateString(now),
         reference: entryData.reference ? String(entryData.reference).trim() : '',
         description: entryData.description ? String(entryData.description).trim() : 'Manual Journal Entry',
         source: 'Manual',
@@ -4265,7 +4276,7 @@ export async function handleCreateJournalEntry(req: express.Request, res: expres
           accountName: line.accountName,
           journalEntryId: jeRef.id,
           entryNumber,
-          date: entryData.date || now.split('T')[0],
+          date: entryData.date || getMogadishuDateString(now),
           reference: entryData.reference || '',
           description: line.memo || entryData.description || 'Manual Journal Entry',
           debit: lineDebit,
@@ -4434,7 +4445,7 @@ export async function handleRecordARPayment(req: express.Request, res: express.R
       const newStatus = newRemaining <= 0.001 ? 'Paid' : 'Partial';
 
       const timestamp = new Date().toISOString();
-      const dateStr = payment.date || timestamp.split('T')[0];
+      const dateStr = payment.date || getMogadishuDateString(timestamp);
 
       const newPayment = {
         id: `pay-${Date.now()}-${randomInt(100, 999)}`,
@@ -4460,7 +4471,7 @@ export async function handleRecordARPayment(req: express.Request, res: express.R
 
       const lines = [
         {
-          accountId: 'acc_cash_bank',
+          accountId: payMethod === 'cash' ? 'acc_cash' : 'acc_bank',
           accountCode: paymentAccountCode,
           accountName: paymentAccountName,
           debit: paymentAmount,
@@ -4632,7 +4643,7 @@ export async function handleRecordAPPayment(req: express.Request, res: express.R
       const newStatus = newRemaining <= 0.001 ? 'Paid' : 'Partial';
 
       const timestamp = new Date().toISOString();
-      const dateStr = payment.date || timestamp.split('T')[0];
+      const dateStr = payment.date || getMogadishuDateString(timestamp);
 
       const newPayment = {
         id: `pay-${Date.now()}-${randomInt(100, 999)}`,
@@ -4666,7 +4677,7 @@ export async function handleRecordAPPayment(req: express.Request, res: express.R
           memo: `AP Settlement for Payable #${item.billNumber || id}`
         },
         {
-          accountId: 'acc_cash_bank',
+          accountId: payMethod === 'cash' ? 'acc_cash' : 'acc_bank',
           accountCode: paymentAccountCode,
           accountName: paymentAccountName,
           debit: 0,
@@ -5291,7 +5302,7 @@ export async function handleRecordSupplierPayment(req: express.Request, res: exp
           memo: `Supplier Payment to ${paymentData.supplierName || 'Supplier'}`
         },
         {
-          accountId: 'acc_cash_bank',
+          accountId: payMethod === 'cash' ? 'acc_cash' : 'acc_bank',
           accountCode: paymentAccountCode,
           accountName: paymentAccountName,
           debit: 0,
@@ -6870,7 +6881,6 @@ export async function getFinancialSummaryData(
   let glAP = 0;
   let glCash = 0;
   let glBank = 0;
-  let glCashBank = 0;
 
   const asOfJournalLines = journalLines.filter((jl: any) => isDocAsOfDateTo(jl));
   asOfJournalLines.forEach((jl: any) => {
@@ -6884,12 +6894,8 @@ export async function getFinancialSummaryData(
       glAP += (credit - debit);
     } else if (code === '1010' || code === 'acc_cash' || (code.startsWith('101') && !code.startsWith('102'))) {
       glCash += (debit - credit);
-      glCashBank += (debit - credit);
     } else if (code === '1020' || code === 'acc_bank' || code.startsWith('102')) {
       glBank += (debit - credit);
-      glCashBank += (debit - credit);
-    } else if (code === 'acc_cash_bank') {
-      glCashBank += (debit - credit);
     }
   });
 
@@ -6897,7 +6903,6 @@ export async function getFinancialSummaryData(
   const apDiff = Math.abs(AP - glAP);
   const cashDiff = Math.abs(cash - glCash);
   const bankDiff = Math.abs(bank - glBank);
-  const cashBankDiff = Math.abs((cash + bank) - glCashBank);
 
   return {
     accountingStatus,
@@ -6919,27 +6924,26 @@ export async function getFinancialSummaryData(
       arOperational: Math.round(AR * 100) / 100,
       arGlControl: Math.round(glAR * 100) / 100,
       arDiff: Math.round(arDiff * 100) / 100,
+      arDifference: Math.round((AR - glAR) * 100) / 100,
       arReconciled: arDiff <= 0.01,
 
       apOperational: Math.round(AP * 100) / 100,
       apGlControl: Math.round(glAP * 100) / 100,
       apDiff: Math.round(apDiff * 100) / 100,
+      apDifference: Math.round((AP - glAP) * 100) / 100,
       apReconciled: apDiff <= 0.01,
 
       cashOperational: Math.round(cash * 100) / 100,
       cashGlControl: Math.round(glCash * 100) / 100,
       cashDiff: Math.round(cashDiff * 100) / 100,
+      cashDifference: Math.round((cash - glCash) * 100) / 100,
       cashReconciled: cashDiff <= 0.01,
 
       bankOperational: Math.round(bank * 100) / 100,
       bankGlControl: Math.round(glBank * 100) / 100,
       bankDiff: Math.round(bankDiff * 100) / 100,
-      bankReconciled: bankDiff <= 0.01,
-
-      cashBankAccounts: Math.round((cash + bank) * 100) / 100,
-      cashBankGlControl: Math.round(glCashBank * 100) / 100,
-      cashBankDiff: Math.round(cashBankDiff * 100) / 100,
-      cashBankReconciled: cashBankDiff <= 0.01
+      bankDifference: Math.round((bank - glBank) * 100) / 100,
+      bankReconciled: bankDiff <= 0.01
     },
     operationalKpis: {
       sales: Math.round(opGrossSales * 100) / 100,

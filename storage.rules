@@ -25,7 +25,7 @@ service firebase.storage {
         getUserRole() in ['Owner', 'owner'] ||
         getUserData().get('isOwner', false) == true ||
         (getUserRole() in ['Admin', 'admin'] && (
-          getUserBranch() in ['all', 'branch_hq_01', 'HQ', 'hq', ''] ||
+          getUserBranch() in ['all', 'branch_hq_01', 'HQ', 'hq'] ||
           getUserData().get('isHQ', false) == true
         )) ||
         getUserBranch() in ['all', 'branch_hq_01', 'HQ', 'hq'] ||

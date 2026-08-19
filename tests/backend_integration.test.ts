@@ -864,8 +864,8 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
         trackStock: false
       });
 
-      // 1. Without branch tax config -> Reject checkout
-      await db.collection('branches').doc('main_branch_01').set({ id: 'main_branch_01' });
+      // 1. With branch taxEnabled=true but no tax config -> Reject checkout
+      await db.collection('branches').doc('main_branch_01').set({ id: 'main_branch_01', taxEnabled: true });
       const resReject = await request(app)
         .post('/api/pos/complete')
         .set('Authorization', OWNER_TOKEN)
@@ -1055,7 +1055,7 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
           }
         });
       expect(resInsufficient.status).toBe(400);
-      expect(resInsufficient.body.error).toMatch(/Payment amount must exactly match order total|Insufficient payment amount/i);
+      expect(resInsufficient.body.error).toMatch(/Payment amount must exactly match order total|Insufficient payment amount|Underpayment rejected/i);
 
       const resNegative = await request(app)
         .post('/api/pos/complete')
@@ -1161,9 +1161,11 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
       expect(jeSnap.empty).toBe(false);
       const jeData = jeSnap.docs[0].data();
       const arLine = jeData.lines.find((l: any) => l.accountId === 'acc_ar');
-      const cashBankLine = jeData.lines.find((l: any) => l.accountId === 'acc_cash_bank');
+      const cashLine = jeData.lines.find((l: any) => l.accountId === 'acc_cash');
+      const bankLine = jeData.lines.find((l: any) => l.accountId === 'acc_bank');
       expect(arLine).toBeDefined();
-      expect(cashBankLine).toBeUndefined(); // NO Cash or Bank line for unpaid credit sale!
+      expect(cashLine).toBeUndefined(); // NO Cash line for unpaid credit sale!
+      expect(bankLine).toBeUndefined(); // NO Bank line for unpaid credit sale!
     });
 
     it('P0-6: TAX - Selects correct Tax Policy and rejects when tax policy is unconfigured/invalid', async () => {
@@ -1214,7 +1216,8 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
       expect(resTaxPolicy.body.order.taxRate).toBe(0.05);
       expect(resTaxPolicy.body.order.tax).toBe(5);
 
-      // Remove taxes collection docs as well -> Branch with NO tax configuration at all -> REJECT
+      // Remove taxes collection docs as well while branch has taxEnabled: true -> Branch with NO tax configuration -> REJECT
+      await db.collection('branches').doc('main_branch_01').set({ id: 'main_branch_01', taxEnabled: true });
       await db.collection('taxes').doc('tax_vat').delete();
       await db.collection('taxes').doc('tax_excise').delete();
 
@@ -1406,17 +1409,21 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
       expect(typeof resReport.body.reconciliation.apOperational).toBe('number');
       expect(typeof resReport.body.reconciliation.apGlControl).toBe('number');
       expect(typeof resReport.body.reconciliation.apReconciled).toBe('boolean');
-      expect(typeof resReport.body.reconciliation.cashBankAccounts).toBe('number');
-      expect(typeof resReport.body.reconciliation.cashBankGlControl).toBe('number');
-      expect(typeof resReport.body.reconciliation.cashBankReconciled).toBe('boolean');
+      expect(typeof resReport.body.reconciliation.cashOperational).toBe('number');
+      expect(typeof resReport.body.reconciliation.cashGlControl).toBe('number');
+      expect(typeof resReport.body.reconciliation.cashReconciled).toBe('boolean');
+      expect(typeof resReport.body.reconciliation.bankOperational).toBe('number');
+      expect(typeof resReport.body.reconciliation.bankGlControl).toBe('number');
+      expect(typeof resReport.body.reconciliation.bankReconciled).toBe('boolean');
     });
 
-    it('P1-1: Separate Cash vs Bank Reconciliation (Case A and Case B)', async () => {
+    it('P1-1: 4-Case Matrix: Separate Cash vs Bank Reconciliation', async () => {
       const { getFinancialSummaryData } = await import('../server/trustedFinancialBackend.js');
       const db = getAdminDb();
 
+      // Case 1: Cash match (5000/5000) / Bank match (2000/2000)
       await db.collection('accounts').doc('acc_cash_p1_1').set({ id: 'acc_cash_p1_1', code: '1010', type: 'cash', balance: 5000, branchId: 'branch_p1_1' });
-      await db.collection('accounts').doc('acc_bank_p1_1').set({ id: 'acc_bank_p1_1', code: '1020', type: 'bank', balance: 0, branchId: 'branch_p1_1' });
+      await db.collection('accounts').doc('acc_bank_p1_1').set({ id: 'acc_bank_p1_1', code: '1020', type: 'bank', balance: 2000, branchId: 'branch_p1_1' });
 
       const nowIso = new Date().toISOString();
       await db.collection('journal_lines').doc('jl_p1_1_cash').set({
@@ -1431,20 +1438,70 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
         id: 'jl_p1_1_bank',
         branchId: 'branch_p1_1',
         accountCode: '1020',
+        debit: 2000,
+        credit: 0,
+        createdAt: nowIso
+      });
+
+      const summary1 = await getFinancialSummaryData('branch_p1_1');
+      expect(summary1.reconciliation.cashOperational).toBe(5000);
+      expect(summary1.reconciliation.cashGlControl).toBe(5000);
+      expect(summary1.reconciliation.cashDifference).toBe(0);
+      expect(summary1.reconciliation.cashReconciled).toBe(true);
+      expect(summary1.reconciliation.bankOperational).toBe(2000);
+      expect(summary1.reconciliation.bankGlControl).toBe(2000);
+      expect(summary1.reconciliation.bankDifference).toBe(0);
+      expect(summary1.reconciliation.bankReconciled).toBe(true);
+
+      // Case 2: Cash mismatch (5000 vs 0) / Bank match (2000 vs 2000)
+      await db.collection('journal_lines').doc('jl_p1_1_cash').set({
+        id: 'jl_p1_1_cash',
+        branchId: 'branch_p1_1',
+        accountCode: '1010',
         debit: 0,
         credit: 0,
         createdAt: nowIso
       });
 
-      const summaryA = await getFinancialSummaryData('branch_p1_1');
-      expect(summaryA.reconciliation.cashOperational).toBe(5000);
-      expect(summaryA.reconciliation.cashGlControl).toBe(5000);
-      expect(summaryA.reconciliation.cashReconciled).toBe(true);
-      expect(summaryA.reconciliation.bankOperational).toBe(0);
-      expect(summaryA.reconciliation.bankGlControl).toBe(0);
-      expect(summaryA.reconciliation.bankReconciled).toBe(true);
-      expect(summaryA.reconciliation.cashBankReconciled).toBe(true);
+      const summary2 = await getFinancialSummaryData('branch_p1_1');
+      expect(summary2.reconciliation.cashOperational).toBe(5000);
+      expect(summary2.reconciliation.cashGlControl).toBe(0);
+      expect(summary2.reconciliation.cashDifference).toBe(5000);
+      expect(summary2.reconciliation.cashReconciled).toBe(false);
+      expect(summary2.reconciliation.bankOperational).toBe(2000);
+      expect(summary2.reconciliation.bankGlControl).toBe(2000);
+      expect(summary2.reconciliation.bankDifference).toBe(0);
+      expect(summary2.reconciliation.bankReconciled).toBe(true);
 
+      // Case 3: Cash match (5000 vs 5000) / Bank mismatch (2000 vs 1000)
+      await db.collection('journal_lines').doc('jl_p1_1_cash').set({
+        id: 'jl_p1_1_cash',
+        branchId: 'branch_p1_1',
+        accountCode: '1010',
+        debit: 5000,
+        credit: 0,
+        createdAt: nowIso
+      });
+      await db.collection('journal_lines').doc('jl_p1_1_bank').set({
+        id: 'jl_p1_1_bank',
+        branchId: 'branch_p1_1',
+        accountCode: '1020',
+        debit: 1000,
+        credit: 0,
+        createdAt: nowIso
+      });
+
+      const summary3 = await getFinancialSummaryData('branch_p1_1');
+      expect(summary3.reconciliation.cashOperational).toBe(5000);
+      expect(summary3.reconciliation.cashGlControl).toBe(5000);
+      expect(summary3.reconciliation.cashDifference).toBe(0);
+      expect(summary3.reconciliation.cashReconciled).toBe(true);
+      expect(summary3.reconciliation.bankOperational).toBe(2000);
+      expect(summary3.reconciliation.bankGlControl).toBe(1000);
+      expect(summary3.reconciliation.bankDifference).toBe(1000);
+      expect(summary3.reconciliation.bankReconciled).toBe(false);
+
+      // Case 4: Cash mismatch (5000 vs 0) / Bank mismatch (2000 vs 5000)
       await db.collection('journal_lines').doc('jl_p1_1_cash').set({
         id: 'jl_p1_1_cash',
         branchId: 'branch_p1_1',
@@ -1462,14 +1519,15 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
         createdAt: nowIso
       });
 
-      const summaryB = await getFinancialSummaryData('branch_p1_1');
-      expect(summaryB.reconciliation.cashOperational).toBe(5000);
-      expect(summaryB.reconciliation.cashGlControl).toBe(0);
-      expect(summaryB.reconciliation.cashReconciled).toBe(false);
-      expect(summaryB.reconciliation.bankOperational).toBe(0);
-      expect(summaryB.reconciliation.bankGlControl).toBe(5000);
-      expect(summaryB.reconciliation.bankReconciled).toBe(false);
-      expect(summaryB.reconciliation.cashBankReconciled).toBe(true);
+      const summary4 = await getFinancialSummaryData('branch_p1_1');
+      expect(summary4.reconciliation.cashOperational).toBe(5000);
+      expect(summary4.reconciliation.cashGlControl).toBe(0);
+      expect(summary4.reconciliation.cashDifference).toBe(5000);
+      expect(summary4.reconciliation.cashReconciled).toBe(false);
+      expect(summary4.reconciliation.bankOperational).toBe(2000);
+      expect(summary4.reconciliation.bankGlControl).toBe(5000);
+      expect(summary4.reconciliation.bankDifference).toBe(-3000);
+      expect(summary4.reconciliation.bankReconciled).toBe(false);
     });
 
     it('P1-2: Unify HQ Authorization in Wallet Handlers (6 Scenarios)', async () => {
@@ -2042,7 +2100,7 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
           }
         });
       expect(res2.status).toBe(400);
-      expect(res2.body.error).toMatch(/Payment amount must exactly match order total/i);
+      expect(res2.body.error).toMatch(/Payment amount must exactly match order total|Underpayment rejected/i);
 
       // Scenario 3: total 100 / payment 101 -> REJECT
       const res3 = await request(app)
@@ -2057,7 +2115,7 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
           }
         });
       expect(res3.status).toBe(400);
-      expect(res3.body.error).toMatch(/Payment amount must exactly match order total/i);
+      expect(res3.body.error).toMatch(/Payment amount must exactly match order total|Overpayment rejected/i);
 
       // Scenario 4: total 100 / payment 101 cash -> REJECT
       const res4 = await request(app)
@@ -2072,7 +2130,7 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
           }
         });
       expect(res4.status).toBe(400);
-      expect(res4.body.error).toMatch(/Payment amount must exactly match order total/i);
+      expect(res4.body.error).toMatch(/Payment amount must exactly match order total|Overpayment rejected/i);
 
       // Scenario 5: total 100 / payment 101 mobile_money -> REJECT
       const res5 = await request(app)
@@ -2087,7 +2145,7 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
           }
         });
       expect(res5.status).toBe(400);
-      expect(res5.body.error).toMatch(/Payment amount must exactly match order total/i);
+      expect(res5.body.error).toMatch(/Payment amount must exactly match order total|Overpayment rejected/i);
 
       // Scenario 6: total 100 / client-supplied change=1 with overpayment -> REJECT; with exact payment -> change is hardcoded 0
       const res6Reject = await request(app)
@@ -2106,7 +2164,7 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
           }
         });
       expect(res6Reject.status).toBe(400);
-      expect(res6Reject.body.error).toMatch(/Payment amount must exactly match order total/i);
+      expect(res6Reject.body.error).toMatch(/Payment amount must exactly match order total|Overpayment rejected/i);
 
       const res6Exact = await request(app)
         .post('/api/pos/complete')
@@ -2192,7 +2250,7 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
           }
         });
       expect(resFailOverpay.status).toBe(400);
-      expect(resFailOverpay.body.error).toMatch(/Payment amount must exactly match order total/i);
+      expect(resFailOverpay.body.error).toMatch(/Payment amount must exactly match order total|Overpayment rejected/i);
 
       // Verify ATOMIC ROLLBACK: Nothing committed
       const postOrders = await db.collection('orders').where('branchId', '==', 'branch_pricing_test').get();

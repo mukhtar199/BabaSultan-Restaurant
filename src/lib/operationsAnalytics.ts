@@ -134,6 +134,7 @@ export function calculateOperationsAnalytics(data: OperationalDataPackage) {
   } = data;
 
   const todayStr = getMogadishuDateString();
+  const now = new Date();
 
   // 1. ORDERS PIPELINE COMPUTATION
   let totalNewOrders = 0;
