@@ -1,5 +1,6 @@
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
 import { db, COLLECTIONS, addSalaryFirestore } from '../../lib/firebase';
+import { getMogadishuDateString } from '../../lib/dateUtils';
 import { IStaffRepository } from '../../domain/repositories/IStaffRepository';
 import { NewEmployeePayload, NewSupplierPayload, SalaryPaymentPayload } from '../../domain/entities/staff';
 import { Employee, Supplier, Salary } from '../../types';
@@ -36,7 +37,7 @@ export class StaffRepositoryImpl implements IStaffRepository {
           dateOfBirth: data.dateOfBirth || '1990-01-01',
           gender: data.gender || 'Male',
           nationality: data.nationality || 'Somali',
-          hireDate: data.hireDate || new Date().toISOString().split('T')[0],
+          hireDate: data.hireDate || getMogadishuDateString(),
           emergencyContact: data.emergencyContact || { name: 'Emergency', relationship: 'Family', phone: '' },
           createdAt: data.createdAt || new Date().toISOString(),
           ...data

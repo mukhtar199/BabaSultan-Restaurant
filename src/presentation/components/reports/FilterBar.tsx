@@ -1,5 +1,6 @@
 import React from 'react';
 import { Calendar, Filter, RotateCcw, Building2, User, ShoppingBag, Users } from 'lucide-react';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 
 export interface ReportFilters {
   datePreset: 'today' | 'week' | 'month' | 'last30' | 'year' | 'all' | 'custom';
@@ -33,25 +34,25 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const handlePresetChange = (preset: ReportFilters['datePreset']) => {
     const today = new Date();
     let start = '';
-    let end = today.toISOString().split('T')[0];
+    let end = getMogadishuDateString(today);
 
     if (preset === 'today') {
       start = end;
     } else if (preset === 'week') {
       const d = new Date();
       d.setDate(d.getDate() - 7);
-      start = d.toISOString().split('T')[0];
+      start = getMogadishuDateString(d);
     } else if (preset === 'month') {
       const d = new Date();
       d.setDate(1);
-      start = d.toISOString().split('T')[0];
+      start = getMogadishuDateString(d);
     } else if (preset === 'last30') {
       const d = new Date();
       d.setDate(d.getDate() - 30);
-      start = d.toISOString().split('T')[0];
+      start = getMogadishuDateString(d);
     } else if (preset === 'year') {
       const d = new Date(today.getFullYear(), 0, 1);
-      start = d.toISOString().split('T')[0];
+      start = getMogadishuDateString(d);
     } else if (preset === 'all') {
       start = '';
       end = '';

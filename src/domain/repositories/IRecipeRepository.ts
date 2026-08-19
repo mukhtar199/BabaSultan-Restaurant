@@ -13,8 +13,8 @@ import {
 
 export interface IRecipeRepository {
   // Recipes
-  fetchRecipes(): Promise<Recipe[]>;
-  subscribeRecipes(callback: (recipes: Recipe[]) => void): () => void;
+  fetchRecipes(branchId?: string): Promise<Recipe[]>;
+  subscribeRecipes(callback: (recipes: Recipe[]) => void, branchId?: string): () => void;
   getRecipeById(id: string): Promise<Recipe | null>;
   getRecipeByProductId(productId: string): Promise<Recipe | null>;
   createRecipe(recipeData: Omit<Recipe, 'id' | 'createdAt' | 'updatedAt'>): Promise<Recipe>;
@@ -23,8 +23,8 @@ export interface IRecipeRepository {
   fetchRecipeHistory(recipeId: string): Promise<RecipeVersionHistory[]>;
 
   // Ingredients
-  fetchIngredients(): Promise<Ingredient[]>;
-  subscribeIngredients(callback: (ingredients: Ingredient[]) => void): () => void;
+  fetchIngredients(branchId?: string): Promise<Ingredient[]>;
+  subscribeIngredients(callback: (ingredients: Ingredient[]) => void, branchId?: string): () => void;
   createIngredient(ingredientData: Omit<Ingredient, 'id' | 'createdAt' | 'updatedAt'>): Promise<Ingredient>;
   updateIngredient(id: string, ingredientData: Partial<Ingredient>): Promise<void>;
   deleteIngredient(id: string): Promise<void>;
@@ -52,8 +52,8 @@ export interface IRecipeRepository {
   applyStockCountAdjustment(stockCountId: string, user: string): Promise<void>;
 
   // Waste Management
-  fetchWasteRecords(): Promise<WasteRecord[]>;
-  subscribeWasteRecords(callback: (records: WasteRecord[]) => void): () => void;
+  fetchWasteRecords(branchId?: string): Promise<WasteRecord[]>;
+  subscribeWasteRecords(callback: (records: WasteRecord[]) => void, branchId?: string): () => void;
   recordWaste(data: Omit<WasteRecord, 'id' | 'createdAt'>): Promise<WasteRecord>;
 
   // Analytics & Forecasting

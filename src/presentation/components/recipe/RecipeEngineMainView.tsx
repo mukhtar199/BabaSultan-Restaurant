@@ -42,7 +42,12 @@ export const RecipeEngineMainView: React.FC<RecipeEngineMainViewProps> = ({
   currentUser = 'Executive Chef',
   defaultLang
 }) => {
-  const { language, setLanguage } = useAuth();
+  const { language, setLanguage, userRecord, role } = useAuth();
+  const effectiveRole = String(role || userRecord?.role || '').toLowerCase().trim();
+  const rawUserBranch = userRecord?.branchId || (userRecord as any)?.branch;
+  const isHqUser = effectiveRole === 'owner' || (effectiveRole === 'admin' && (!rawUserBranch || rawUserBranch === 'all'));
+  const effectiveBranchId = isHqUser ? undefined : rawUserBranch;
+
   const currentLang = (defaultLang || language) as RecipeLang;
   const [lang, setLang] = useState<RecipeLang>(currentLang);
 
@@ -76,10 +81,10 @@ export const RecipeEngineMainView: React.FC<RecipeEngineMainViewProps> = ({
 
   // 1. Subscribe to Real-Time Data
   useEffect(() => {
-    const unsubRecipes = controller.subscribeRecipes(setRecipes);
-    const unsubIngredients = controller.subscribeIngredients(setIngredients);
+    const unsubRecipes = controller.subscribeRecipes(setRecipes, effectiveBranchId);
+    const unsubIngredients = controller.subscribeIngredients(setIngredients, effectiveBranchId);
     const unsubConversions = controller.subscribeUnitConversions(setConversions);
-    const unsubWaste = controller.subscribeWasteRecords(setWasteRecords);
+    const unsubWaste = controller.subscribeWasteRecords(setWasteRecords, effectiveBranchId);
 
     return () => {
       unsubRecipes();
@@ -87,7 +92,7 @@ export const RecipeEngineMainView: React.FC<RecipeEngineMainViewProps> = ({
       unsubConversions();
       unsubWaste();
     };
-  }, [controller]);
+  }, [controller, effectiveBranchId]);
 
   const t = recipeDict[lang] || recipeDict.en;
 

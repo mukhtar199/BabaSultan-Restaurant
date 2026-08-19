@@ -17,6 +17,7 @@ import {
   Layers
 } from 'lucide-react';
 import { downloadPDFReport, exportToExcel } from '../lib/reports';
+import { getMogadishuDateString } from '../lib/dateUtils';
 
 interface DashboardOverviewProps {
   orders: Order[];
@@ -62,7 +63,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const t = translations[activeLang];
 
   // 1. Calculate Today's Metrics
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getMogadishuDateString();
 
   const todayOrders = orders.filter(o => o.createdAt && o.createdAt.startsWith(todayStr));
   const todayRevenue = todayOrders.reduce((acc, o) => acc + (o.totalAmount || 0), 0);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 import { KPICard } from './KPICard';
 import { OrdersVolumeChart } from './DashboardCharts';
 import { Order } from '../../../types';
@@ -24,7 +25,7 @@ export const CashierView: React.FC<CashierViewProps> = ({ orders, onNavigateToTa
   const { t } = useAuth();
   const d: Record<string, any> = t.dashboard || {};
 
-  const todayIso = new Date().toISOString().split('T')[0];
+  const todayIso = getMogadishuDateString();
   const todayOrders = orders.filter(o => o.createdAt && o.createdAt.startsWith(todayIso));
 
   // Cashier metrics

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, EmployeeRole, EmploymentStatus, GenderType } from '../../../domain/entities/hrm';
 import { HRMRepositoryImpl } from '../../../data/repositories/HRMRepositoryImpl';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 import { X, User, Phone, Mail, MapPin, Briefcase, Building, DollarSign, Calendar, ShieldCheck } from 'lucide-react';
 
 interface Props {
@@ -48,7 +49,7 @@ export const EmployeeFormModal: React.FC<Props> = ({ employee, isOpen, onClose, 
     dateOfBirth: '1995-01-01',
     gender: 'Male',
     nationality: 'Somali',
-    hireDate: new Date().toISOString().split('T')[0],
+    hireDate: getMogadishuDateString(),
     jobTitle: 'Staff Member',
     department: 'Operations',
     branch: 'Main Flagship Branch',
@@ -82,7 +83,7 @@ export const EmployeeFormModal: React.FC<Props> = ({ employee, isOpen, onClose, 
         dateOfBirth: employee.dateOfBirth || '1995-01-01',
         gender: employee.gender || 'Male',
         nationality: employee.nationality || 'Somali',
-        hireDate: employee.hireDate || new Date().toISOString().split('T')[0],
+        hireDate: employee.hireDate || getMogadishuDateString(),
         jobTitle: employee.jobTitle || 'Staff Member',
         department: employee.department || 'Operations',
         branch: employee.branch || 'Main Flagship Branch',
@@ -104,7 +105,7 @@ export const EmployeeFormModal: React.FC<Props> = ({ employee, isOpen, onClose, 
         dateOfBirth: '1995-01-01',
         gender: 'Male',
         nationality: 'Somali',
-        hireDate: new Date().toISOString().split('T')[0],
+        hireDate: getMogadishuDateString(),
         jobTitle: 'Cashier',
         department: 'Operations',
         branch: 'Main Flagship Branch',

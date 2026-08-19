@@ -522,8 +522,18 @@ service cloud.firestore {
     // HRM Collections
     match /attendance/{id} {
       allow read: if isSignedIn() && isUserBranch(resource.data.get('branchId', ''));
-      allow create: if isPOSStaff() && isUserBranch(request.resource.data.get('branchId', ''));
-      allow update: if isPOSStaff() && isUserBranch(resource.data.get('branchId', '')) && isUserBranch(request.resource.data.get('branchId', ''));
+      allow create: if isPOSStaff() && isUserBranch(request.resource.data.get('branchId', '')) && (
+        isManagement() ||
+        request.resource.data.get('employeeId', '') == request.auth.uid ||
+        request.resource.data.get('employeeId', '') == getUserData().get('employeeId', '')
+      );
+      allow update: if isUserBranch(resource.data.get('branchId', '')) && isUserBranch(request.resource.data.get('branchId', '')) && (
+        isManagement() || (
+          isPOSStaff() &&
+          (resource.data.get('employeeId', '') == request.auth.uid || getUserData().get('employeeId', '') == resource.data.get('employeeId', '')) &&
+          request.resource.data.get('employeeId', '') == resource.data.get('employeeId', '')
+        )
+      );
       allow delete: if isManagement() && isUserBranch(resource.data.get('branchId', ''));
     }
     match /shifts/{id} {

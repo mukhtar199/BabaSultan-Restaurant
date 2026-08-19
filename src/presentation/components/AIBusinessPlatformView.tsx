@@ -197,15 +197,21 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
       setOrders(list);
     }, handleError);
 
-    // Global unified product catalog
-    const unsubProducts = onSnapshot(query(collection(db, COLLECTIONS.PRODUCTS)), (snap) => {
+    const productsQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.PRODUCTS), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.PRODUCTS));
+
+    const unsubProducts = onSnapshot(productsQuery, (snap) => {
       const list: Product[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Product));
       setProducts(list);
     }, handleError);
 
-    // Global ingredient master specs
-    const unsubIngredients = onSnapshot(query(collection(db, COLLECTIONS.INGREDIENTS)), (snap) => {
+    const ingredientsQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.INGREDIENTS), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.INGREDIENTS));
+
+    const unsubIngredients = onSnapshot(ingredientsQuery, (snap) => {
       const list: Ingredient[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Ingredient));
       setIngredients(list);
@@ -231,8 +237,11 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
       setEmployees(list);
     }, handleError);
 
-    // Global customer registry
-    const unsubCustomers = onSnapshot(query(collection(db, COLLECTIONS.CUSTOMERS)), (snap) => {
+    const customersQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.CUSTOMERS), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.CUSTOMERS));
+
+    const unsubCustomers = onSnapshot(customersQuery, (snap) => {
       const list: Customer[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Customer));
       setCustomers(list);

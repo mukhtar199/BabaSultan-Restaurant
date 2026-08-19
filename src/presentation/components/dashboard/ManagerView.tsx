@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 import { KPICard } from './KPICard';
 import { Order, Product, Ingredient, CustomerFeedback } from '../../../types';
 import {
@@ -34,7 +35,7 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
   const { t } = useAuth();
   const d: Record<string, any> = t.dashboard || {};
 
-  const todayIso = new Date().toISOString().split('T')[0];
+  const todayIso = getMogadishuDateString();
 
   // 1. Metrics Calculations
   const activeOrders = orders.filter(o => o.status === 'in_preparation' || o.status === 'pending' || o.status === 'ready_for_pickup' || o.prepStatus === 'preparing');

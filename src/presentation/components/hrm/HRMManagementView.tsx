@@ -15,6 +15,7 @@ import { HRMRepositoryImpl } from '../../../data/repositories/HRMRepositoryImpl'
 import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { EmployeeFormModal } from './EmployeeFormModal';
 import { useAuth } from '../../context/AuthContext';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 import {
   Users,
   Clock,
@@ -87,8 +88,8 @@ export const HRMManagementView: React.FC = () => {
   // Leave Form Modal
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveType, setLeaveType] = useState<any>('Annual Leave');
-  const [leaveStartDate, setLeaveStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [leaveEndDate, setLeaveEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [leaveStartDate, setLeaveStartDate] = useState(getMogadishuDateString());
+  const [leaveEndDate, setLeaveEndDate] = useState(getMogadishuDateString());
   const [leaveReason, setLeaveReason] = useState('');
 
   // Performance Form Modal
@@ -138,7 +139,7 @@ export const HRMManagementView: React.FC = () => {
       setAnalytics(stats);
 
       // Check current user attendance for today
-      const today = new Date().toISOString().split('T')[0];
+      const today = getMogadishuDateString();
       const meEmp = empList.find((e) => e.email === user?.email || e.fullName === userRecord?.displayName) || empList[0];
       if (meEmp) {
         const myTodayAtt = attList.find((a) => a.employeeId === meEmp.id && a.date === today);

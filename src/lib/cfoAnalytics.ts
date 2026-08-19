@@ -1,4 +1,5 @@
 import { Order, Product, Ingredient, Expense, Purchase, Employee, SalaryPayment, Supplier, InventoryMovement, CustomerRefund, BankTransaction, FinancialAccount } from '../types';
+import { getMogadishuDateString } from './dateUtils';
 
 export interface CFOKPIs {
   // Revenue
@@ -136,7 +137,7 @@ export function calculateCFOAnalytics(data: CFODataPackage) {
   } = data;
 
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getMogadishuDateString();
 
   // Helper date logic
   const completedOrders = orders.filter(o => o.status === 'completed');
@@ -488,7 +489,7 @@ export function calculateCFOAnalytics(data: CFODataPackage) {
   const historicalDailyTrends: Array<{ date: string; sales: number; profit: number; expenses: number }> = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-    const dStr = d.toISOString().split('T')[0];
+    const dStr = getMogadishuDateString(d);
     const dayOrders = completedOrders.filter(o => o.createdAt && o.createdAt.startsWith(dStr));
     const sales = dayOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
     const dayExpenses = expenses.filter(e => {

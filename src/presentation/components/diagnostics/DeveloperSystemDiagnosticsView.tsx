@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db, COLLECTIONS } from '../../../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { UserRole, USER_ROLES, ROLE_PERMISSIONS } from '../../../constants';
 
 interface DeveloperSystemDiagnosticsViewProps {
@@ -126,14 +126,25 @@ export const DeveloperSystemDiagnosticsView: React.FC<DeveloperSystemDiagnostics
     };
 
     try {
+      const userRoleStr = (userRecord?.role || role || '').toLowerCase().trim();
+      const isHqUser = userRoleStr === 'owner' || (userRoleStr === 'admin' && (!userRecord?.branchId || userRecord?.branchId === 'all'));
+      const userBranch = userRecord?.branchId || (userRecord as any)?.branch;
+      const isBranchScoped = !isHqUser && Boolean(userBranch) && userBranch !== 'all';
+
+      const buildBranchQuery = (colName: string) => {
+        return isBranchScoped
+          ? query(collection(db, colName), where('branchId', '==', userBranch))
+          : query(collection(db, colName));
+      };
+
       const [prodSnap, ordSnap, ingSnap, empSnap, expSnap, supSnap, custSnap] = await Promise.all([
-        getDocs(collection(db, COLLECTIONS.PRODUCTS)).catch(() => null),
-        getDocs(collection(db, COLLECTIONS.ORDERS)).catch(() => null),
-        getDocs(collection(db, COLLECTIONS.INGREDIENTS)).catch(() => null),
-        getDocs(collection(db, COLLECTIONS.EMPLOYEES)).catch(() => null),
-        getDocs(collection(db, COLLECTIONS.EXPENSES)).catch(() => null),
-        getDocs(collection(db, COLLECTIONS.SUPPLIERS)).catch(() => null),
-        getDocs(collection(db, COLLECTIONS.CUSTOMERS)).catch(() => null)
+        getDocs(buildBranchQuery(COLLECTIONS.PRODUCTS)).catch(() => null),
+        getDocs(buildBranchQuery(COLLECTIONS.ORDERS)).catch(() => null),
+        getDocs(buildBranchQuery(COLLECTIONS.INGREDIENTS)).catch(() => null),
+        getDocs(buildBranchQuery(COLLECTIONS.EMPLOYEES)).catch(() => null),
+        getDocs(buildBranchQuery(COLLECTIONS.EXPENSES)).catch(() => null),
+        getDocs(buildBranchQuery(COLLECTIONS.SUPPLIERS)).catch(() => null),
+        getDocs(buildBranchQuery(COLLECTIONS.CUSTOMERS)).catch(() => null)
       ]);
 
       if (prodSnap) loadedCounts.products = prodSnap.docs.length;

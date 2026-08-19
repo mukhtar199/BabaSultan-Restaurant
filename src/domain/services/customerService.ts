@@ -4,6 +4,7 @@ import {
   CustomerCoupon,
   NotificationChannel
 } from '../entities/customer';
+import { getMogadishuDateString } from '../../lib/dateUtils';
 
 export class CustomerService {
   /**
@@ -58,7 +59,7 @@ export class CustomerService {
       return { valid: false, discountAmount: 0, reason: 'Coupon usage limit has been reached' };
     }
 
-    const todayIso = new Date().toISOString().split('T')[0];
+    const todayIso = getMogadishuDateString();
     if (coupon.expiryDate && coupon.expiryDate < todayIso) {
       return { valid: false, discountAmount: 0, reason: 'Coupon code has expired' };
     }

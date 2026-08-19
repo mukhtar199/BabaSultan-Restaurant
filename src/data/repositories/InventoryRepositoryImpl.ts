@@ -59,9 +59,11 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
 export class InventoryRepositoryImpl implements IInventoryRepository {
   // Inventory Items
-  async fetchInventoryItems(): Promise<InventoryItem[]> {
+  async fetchInventoryItems(branchId?: string): Promise<InventoryItem[]> {
     try {
-      const q = query(collection(db, COLLECTIONS.INVENTORY), orderBy('itemName', 'asc'));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.INVENTORY), where('branchId', '==', branchId), orderBy('itemName', 'asc'))
+        : query(collection(db, COLLECTIONS.INVENTORY), orderBy('itemName', 'asc'));
       const snap = await getDocs(q);
       const items: InventoryItem[] = [];
       snap.forEach((d) => items.push({ id: d.id, ...d.data() } as InventoryItem));
@@ -72,8 +74,10 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
     }
   }
 
-  subscribeInventoryItems(callback: (items: InventoryItem[]) => void): () => void {
-    const q = query(collection(db, COLLECTIONS.INVENTORY), orderBy('itemName', 'asc'));
+  subscribeInventoryItems(callback: (items: InventoryItem[]) => void, branchId?: string): () => void {
+    const q = branchId && branchId !== 'all'
+      ? query(collection(db, COLLECTIONS.INVENTORY), where('branchId', '==', branchId), orderBy('itemName', 'asc'))
+      : query(collection(db, COLLECTIONS.INVENTORY), orderBy('itemName', 'asc'));
     return onSnapshot(
       q,
       (snap) => {
@@ -164,9 +168,11 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   }
 
   // Stock Movements
-  async fetchMovements(): Promise<InventoryMovement[]> {
+  async fetchMovements(branchId?: string): Promise<InventoryMovement[]> {
     try {
-      const q = query(collection(db, COLLECTIONS.INVENTORY_MOVEMENTS), orderBy('createdAt', 'desc'));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.INVENTORY_MOVEMENTS), where('branchId', '==', branchId), orderBy('createdAt', 'desc'))
+        : query(collection(db, COLLECTIONS.INVENTORY_MOVEMENTS), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
       const movements: InventoryMovement[] = [];
       snap.forEach((d) => movements.push({ id: d.id, ...d.data() } as InventoryMovement));
@@ -177,8 +183,10 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
     }
   }
 
-  subscribeMovements(callback: (movements: InventoryMovement[]) => void): () => void {
-    const q = query(collection(db, COLLECTIONS.INVENTORY_MOVEMENTS), orderBy('createdAt', 'desc'));
+  subscribeMovements(callback: (movements: InventoryMovement[]) => void, branchId?: string): () => void {
+    const q = branchId && branchId !== 'all'
+      ? query(collection(db, COLLECTIONS.INVENTORY_MOVEMENTS), where('branchId', '==', branchId), orderBy('createdAt', 'desc'))
+      : query(collection(db, COLLECTIONS.INVENTORY_MOVEMENTS), orderBy('createdAt', 'desc'));
     return onSnapshot(
       q,
       (snap) => {
@@ -205,9 +213,11 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   }
 
   // Purchasing
-  async fetchPurchaseOrders(): Promise<PurchaseOrder[]> {
+  async fetchPurchaseOrders(branchId?: string): Promise<PurchaseOrder[]> {
     try {
-      const q = query(collection(db, COLLECTIONS.PURCHASE_ORDERS), orderBy('createdAt', 'desc'));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.PURCHASE_ORDERS), where('branchId', '==', branchId), orderBy('createdAt', 'desc'))
+        : query(collection(db, COLLECTIONS.PURCHASE_ORDERS), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
       const list: PurchaseOrder[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as PurchaseOrder));
@@ -218,8 +228,10 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
     }
   }
 
-  subscribePurchaseOrders(callback: (orders: PurchaseOrder[]) => void): () => void {
-    const q = query(collection(db, COLLECTIONS.PURCHASE_ORDERS), orderBy('createdAt', 'desc'));
+  subscribePurchaseOrders(callback: (orders: PurchaseOrder[]) => void, branchId?: string): () => void {
+    const q = branchId && branchId !== 'all'
+      ? query(collection(db, COLLECTIONS.PURCHASE_ORDERS), where('branchId', '==', branchId), orderBy('createdAt', 'desc'))
+      : query(collection(db, COLLECTIONS.PURCHASE_ORDERS), orderBy('createdAt', 'desc'));
     return onSnapshot(
       q,
       (snap) => {
@@ -326,9 +338,11 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   }
 
   // Suppliers
-  async fetchSuppliers(): Promise<Supplier[]> {
+  async fetchSuppliers(branchId?: string): Promise<Supplier[]> {
     try {
-      const q = query(collection(db, COLLECTIONS.SUPPLIERS), orderBy('companyName', 'asc'));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.SUPPLIERS), where('branchId', '==', branchId), orderBy('companyName', 'asc'))
+        : query(collection(db, COLLECTIONS.SUPPLIERS), orderBy('companyName', 'asc'));
       const snap = await getDocs(q);
       const list: Supplier[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Supplier));
@@ -339,8 +353,10 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
     }
   }
 
-  subscribeSuppliers(callback: (suppliers: Supplier[]) => void): () => void {
-    const q = query(collection(db, COLLECTIONS.SUPPLIERS), orderBy('companyName', 'asc'));
+  subscribeSuppliers(callback: (suppliers: Supplier[]) => void, branchId?: string): () => void {
+    const q = branchId && branchId !== 'all'
+      ? query(collection(db, COLLECTIONS.SUPPLIERS), where('branchId', '==', branchId), orderBy('companyName', 'asc'))
+      : query(collection(db, COLLECTIONS.SUPPLIERS), orderBy('companyName', 'asc'));
     return onSnapshot(
       q,
       (snap) => {

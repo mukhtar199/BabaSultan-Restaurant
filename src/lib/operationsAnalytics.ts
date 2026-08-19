@@ -13,6 +13,7 @@ import {
   CustomerFeedback, 
   EquipmentItem 
 } from '../types';
+import { getMogadishuDateString } from './dateUtils';
 
 export interface OperationsKPIs {
   // Orders Pipeline
@@ -132,8 +133,7 @@ export function calculateOperationsAnalytics(data: OperationalDataPackage) {
     equipment = []
   } = data;
 
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getMogadishuDateString();
 
   // 1. ORDERS PIPELINE COMPUTATION
   let totalNewOrders = 0;

@@ -6,6 +6,7 @@ import {
   PurchaseOrderItem
 } from '../../../domain/entities/inventory';
 import { InventoryLang, inventoryDict } from './translations';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 import {
   Truck,
   Plus,
@@ -64,7 +65,7 @@ export const PurchaseOrdersView: React.FC<PurchaseOrdersViewProps> = ({
     }
     setSelectedSupplierId(suppliers[0]?.id || '');
     setExpectedDeliveryDate(
-      new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      getMogadishuDateString(Date.now() + 5 * 24 * 60 * 60 * 1000)
     );
     setNotes('');
     setPoItems([]);

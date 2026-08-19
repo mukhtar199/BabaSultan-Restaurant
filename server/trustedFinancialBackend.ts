@@ -529,10 +529,12 @@ async function executePosCheckoutRestFallback(
   // Server-authoritative Tax Rate lookup
   let configuredTaxRate: number | null = null;
   const branchDoc = await safeGetDoc('branches', targetBranchId, user.idToken);
-  const isTaxDisabled = orderData.taxEnabled === false || orderData.taxEnabled === 'false' ||
-                        branchDoc?.taxEnabled === false || branchDoc?.taxEnabled === 'false';
+  
+  // Tax optionality determined strictly by server branch config (never client orderData)
+  const isTaxExplicitlyDisabled = branchDoc?.taxEnabled === false || branchDoc?.taxEnabled === 'false';
+  const isTaxExplicitlyEnabled = branchDoc?.taxEnabled === true || branchDoc?.taxEnabled === 'true';
 
-  if (isTaxDisabled) {
+  if (isTaxExplicitlyDisabled) {
     configuredTaxRate = 0;
   } else if (branchDoc && typeof branchDoc.taxRate === 'number') {
     const bTax = branchDoc.taxRate;
@@ -560,6 +562,9 @@ async function executePosCheckoutRestFallback(
         const defaultTax = globalDefaultTaxes[0];
         const r = Number(defaultTax.rate || 0);
         configuredTaxRate = r > 1 ? r / 100 : r;
+      } else if (!isTaxExplicitlyEnabled && (!taxesDocs || taxesDocs.length === 0)) {
+        // No tax policy configured in database and tax not explicitly required on branch -> tax is optional/0
+        configuredTaxRate = 0;
       }
     }
   }
@@ -576,19 +581,13 @@ async function executePosCheckoutRestFallback(
   let driverEarningsAmount = 0;
 
   if (orderData.orderType === 'delivery') {
-    let isDeliveryFeeEnabled = true;
-
-    if (orderData.deliveryFeeEnabled === false || orderData.deliveryFeeEnabled === 'false') {
-      isDeliveryFeeEnabled = false;
+    if (branchDoc && (branchDoc.deliveryEnabled === false || branchDoc.deliveryEnabled === 'false')) {
+      throw new Error(`Delivery service is currently disabled for branch "${targetBranchId}". Checkout rejected.`);
     }
 
-    if (branchDoc) {
-      if (branchDoc.deliveryEnabled === false || branchDoc.deliveryEnabled === 'false') {
-        throw new Error(`Delivery service is currently disabled for branch "${targetBranchId}". Checkout rejected.`);
-      }
-      if (branchDoc.deliveryFeeEnabled === false || branchDoc.deliveryFeeEnabled === 'false') {
-        isDeliveryFeeEnabled = false;
-      }
+    let isDeliveryFeeEnabled = true;
+    if (branchDoc && (branchDoc.deliveryFeeEnabled === false || branchDoc.deliveryFeeEnabled === 'false')) {
+      isDeliveryFeeEnabled = false;
     }
 
     if (orderData.deliveryZoneId) {
@@ -610,7 +609,7 @@ async function executePosCheckoutRestFallback(
 
       if (isDeliveryFeeEnabled) {
         const fee = typeof zDoc.baseDeliveryFee === 'number' ? zDoc.baseDeliveryFee : (typeof zDoc.deliveryFee === 'number' ? zDoc.deliveryFee : null);
-        if (fee === null || typeof fee !== 'number') {
+        if (fee === null || typeof fee !== 'number' || fee < 0) {
           throw new Error(`Invalid fee configuration for delivery zone "${orderData.deliveryZoneId}". Checkout rejected.`);
         }
         deliveryFee = Math.max(0, fee);
@@ -624,7 +623,7 @@ async function executePosCheckoutRestFallback(
           if (typeof branchDoc.defaultDeliveryFee === 'number') serverFee = branchDoc.defaultDeliveryFee;
           else if (typeof branchDoc.deliveryFee === 'number') serverFee = branchDoc.deliveryFee;
         }
-        if (serverFee === null) {
+        if (serverFee === null || typeof serverFee !== 'number' || serverFee < 0) {
           throw new Error(`Delivery fee configuration not found for branch "${targetBranchId}". Please configure branch settings or specify a valid delivery zone. Checkout rejected.`);
         }
         deliveryFee = Math.max(0, serverFee);
@@ -642,7 +641,7 @@ async function executePosCheckoutRestFallback(
       driverEarningsAmount = Math.max(0, Number(orderData.driverEarningsAmount || 0));
     }
   } else {
-    // Pickup or Dine-in
+    // Pickup or Dine-in: strictly 0 delivery fee
     deliveryFee = 0;
     driverEarningsAmount = 0;
   }
@@ -658,7 +657,12 @@ async function executePosCheckoutRestFallback(
   const driverDue = driverEarningsAmount;
 
   // Server-authoritative Payment Status
+  const ALLOWED_PAYMENT_METHODS = ['cash', 'card', 'bank', 'mobile_money', 'credit', 'unpaid'];
   const rawPayMethod = String(orderData.paymentMethod || 'cash').toLowerCase();
+  if (!ALLOWED_PAYMENT_METHODS.includes(rawPayMethod)) {
+    throw new Error(`Invalid payment method "${rawPayMethod}". Allowed methods: ${ALLOWED_PAYMENT_METHODS.join(', ')}.`);
+  }
+
   const rawPayStatus = String(orderData.paymentStatus || '').toLowerCase();
   const isCreditOrUnpaid = rawPayMethod === 'credit' || rawPayMethod === 'unpaid' || orderData.isCredit === true || rawPayStatus === 'unpaid';
 
@@ -668,9 +672,9 @@ async function executePosCheckoutRestFallback(
 
   if (isCreditOrUnpaid) {
     isPaidSale = false;
-    finalPayMethod = 'credit';
+    finalPayMethod = rawPayMethod === 'unpaid' ? 'unpaid' : 'credit';
   } else {
-    const providedPaid = orderData.paidAmount ?? orderData.paymentAmount;
+    const providedPaid = orderData.paidAmount ?? orderData.paymentAmount ?? orderData.amountTendered;
     if (providedPaid === undefined || providedPaid === null) {
       throw new Error(`Missing payment amount for paid payment method "${rawPayMethod}". Payment amount must be explicitly provided.`);
     }
@@ -678,11 +682,11 @@ async function executePosCheckoutRestFallback(
     if (!Number.isFinite(numPaid) || numPaid < 0) {
       throw new Error(`Invalid payment amount (${providedPaid}): cannot be negative.`);
     }
-    if (numPaid === 0) {
-      throw new Error(`Zero payment amount provided for paid payment method "${rawPayMethod}". Credit sale must explicitly use credit method.`);
+    if (numPaid < realTotalAmount - 0.001) {
+      throw new Error(`Underpayment rejected: Payment amount ($${numPaid.toFixed(2)}) is less than total amount ($${realTotalAmount.toFixed(2)}).`);
     }
-    if (Math.abs(numPaid - realTotalAmount) > 0.001) {
-      throw new Error(`Payment amount must exactly match order total. Expected $${realTotalAmount.toFixed(2)}, received $${numPaid.toFixed(2)}.`);
+    if (numPaid > realTotalAmount + 0.001) {
+      throw new Error(`Overpayment rejected: Payment amount ($${numPaid.toFixed(2)}) exceeds total amount ($${realTotalAmount.toFixed(2)}). Exact payment required, no change allowed.`);
     }
     isPaidSale = true;
     paidTenderAmount = realTotalAmount;
@@ -1232,10 +1236,10 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
       let configuredTaxRate: number | null = null;
       const branchSnap = await transaction.get(db.collection('branches').doc(targetBranchId));
       const branchData = branchSnap.exists ? branchSnap.data() : null;
-      const isTaxDisabled = orderData.taxEnabled === false || orderData.taxEnabled === 'false' ||
-                            branchData?.taxEnabled === false || branchData?.taxEnabled === 'false';
+      const isTaxExplicitlyDisabled = branchData?.taxEnabled === false || branchData?.taxEnabled === 'false';
+      const isTaxExplicitlyEnabled = branchData?.taxEnabled === true || branchData?.taxEnabled === 'true';
 
-      if (isTaxDisabled) {
+      if (isTaxExplicitlyDisabled) {
         configuredTaxRate = 0;
       } else if (branchSnap.exists && typeof branchData?.taxRate === 'number') {
         const bTax = branchData!.taxRate;
@@ -1280,6 +1284,9 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
             const defaultTax = filteredGlobal[0];
             const r = Number(defaultTax.rate || 0);
             configuredTaxRate = r > 1 ? r / 100 : r;
+          } else if (!isTaxExplicitlyEnabled && globalDocs.length === 0 && branchDocs.length === 0) {
+            // No tax policy in system and tax not explicitly required on branch -> tax is optional/0
+            configuredTaxRate = 0;
           }
         }
       }
@@ -1297,17 +1304,16 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
       let driverEarningsAmount = 0;
 
       if (orderData.orderType === 'delivery') {
-        let isDeliveryFeeEnabled = true;
-
-        if (orderData.deliveryFeeEnabled === false || orderData.deliveryFeeEnabled === 'false') {
-          isDeliveryFeeEnabled = false;
-        }
-
         if (branchSnap.exists) {
           const bData = branchSnap.data()!;
           if (bData.deliveryEnabled === false || bData.deliveryEnabled === 'false') {
             throw new Error(`Delivery service is currently disabled for branch "${targetBranchId}". Checkout rejected.`);
           }
+        }
+
+        let isDeliveryFeeEnabled = true;
+        if (branchSnap.exists) {
+          const bData = branchSnap.data()!;
           if (bData.deliveryFeeEnabled === false || bData.deliveryFeeEnabled === 'false') {
             isDeliveryFeeEnabled = false;
           }
@@ -1323,7 +1329,7 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
             throw new Error(`Delivery zone "${orderData.deliveryZoneId}" does not belong to branch "${targetBranchId}". Checkout rejected.`);
           }
 
-          if (zData.deliveryFeeEnabled === false || zData.deliveryFeeEnabled === 'false') {
+          if (zData.deliveryFeeEnabled === false || zData.deliveryFeeEnabled === 'false' || zData.deliveryFee === 0 || zData.baseDeliveryFee === 0) {
             isDeliveryFeeEnabled = false;
           }
 
@@ -1333,7 +1339,7 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
 
           if (isDeliveryFeeEnabled) {
             const fee = typeof zData.baseDeliveryFee === 'number' ? zData.baseDeliveryFee : (typeof zData.deliveryFee === 'number' ? zData.deliveryFee : null);
-            if (fee === null || typeof fee !== 'number') {
+            if (fee === null || typeof fee !== 'number' || fee < 0) {
               throw new Error(`Invalid fee configuration for delivery zone "${orderData.deliveryZoneId}". Checkout rejected.`);
             }
             deliveryFee = Math.max(0, fee);
@@ -1348,7 +1354,7 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
               if (typeof bData.defaultDeliveryFee === 'number') serverFee = bData.defaultDeliveryFee;
               else if (typeof bData.deliveryFee === 'number') serverFee = bData.deliveryFee;
             }
-            if (serverFee === null) {
+            if (serverFee === null || typeof serverFee !== 'number' || serverFee < 0) {
               throw new Error(`Delivery fee configuration not found for branch "${targetBranchId}". Please configure branch settings or specify a valid delivery zone. Checkout rejected.`);
             }
             deliveryFee = Math.max(0, serverFee);
@@ -1367,6 +1373,7 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
           driverEarningsAmount = Math.max(0, Number(orderData.driverEarningsAmount || 0));
         }
       } else {
+        // Pickup or Dine-in: strictly 0 delivery fee
         deliveryFee = 0;
         driverEarningsAmount = 0;
       }
@@ -1382,7 +1389,12 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
       const driverDue = driverEarningsAmount;
 
       // Server-Authoritative Payment Validation
+      const ALLOWED_PAYMENT_METHODS = ['cash', 'card', 'bank', 'mobile_money', 'credit', 'unpaid'];
       const rawPayMethod = String(orderData.paymentMethod || 'cash').toLowerCase();
+      if (!ALLOWED_PAYMENT_METHODS.includes(rawPayMethod)) {
+        throw new Error(`Invalid payment method "${rawPayMethod}". Allowed methods: ${ALLOWED_PAYMENT_METHODS.join(', ')}.`);
+      }
+
       const rawPayStatus = String(orderData.paymentStatus || '').toLowerCase();
       const isCreditOrUnpaid = rawPayMethod === 'credit' || rawPayMethod === 'unpaid' || orderData.isCredit === true || rawPayStatus === 'unpaid';
 
@@ -1392,9 +1404,9 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
 
       if (isCreditOrUnpaid) {
         isPaidSale = false;
-        finalPayMethod = 'credit';
+        finalPayMethod = rawPayMethod === 'unpaid' ? 'unpaid' : 'credit';
       } else {
-        const providedPaid = orderData.paidAmount ?? orderData.paymentAmount;
+        const providedPaid = orderData.paidAmount ?? orderData.paymentAmount ?? orderData.amountTendered;
         if (providedPaid === undefined || providedPaid === null) {
           throw new Error(`Missing payment amount for paid payment method "${rawPayMethod}". Payment amount must be explicitly provided.`);
         }
@@ -1402,11 +1414,11 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
         if (!Number.isFinite(numPaid) || numPaid < 0) {
           throw new Error(`Invalid payment amount (${providedPaid}): cannot be negative.`);
         }
-        if (numPaid === 0) {
-          throw new Error(`Zero payment amount provided for paid payment method "${rawPayMethod}". Credit sale must explicitly use credit method.`);
+        if (numPaid < realTotalAmount - 0.001) {
+          throw new Error(`Underpayment rejected: Payment amount ($${numPaid.toFixed(2)}) is less than total amount ($${realTotalAmount.toFixed(2)}).`);
         }
-        if (Math.abs(numPaid - realTotalAmount) > 0.001) {
-          throw new Error(`Payment amount must exactly match order total. Expected $${realTotalAmount.toFixed(2)}, received $${numPaid.toFixed(2)}.`);
+        if (numPaid > realTotalAmount + 0.001) {
+          throw new Error(`Overpayment rejected: Payment amount ($${numPaid.toFixed(2)}) exceeds total amount ($${realTotalAmount.toFixed(2)}). Exact payment required, no change allowed.`);
         }
         isPaidSale = true;
         paidTenderAmount = realTotalAmount;
@@ -1799,6 +1811,8 @@ export async function handleOrderCancellation(req: express.Request, res: express
         return { status: 'already_cancelled', message: `Order #${orderData.orderNumber || orderId} is already cancelled.` };
       }
 
+      const isAlreadyFullyRefunded = orderData.paymentStatus === 'refunded' || Number(orderData.refundedAmount || 0) >= Number(orderData.totalAmount || 0) - 0.001;
+
       const targetBranchId = orderData.branchId;
       if (!targetBranchId) {
         throw new Error('Order branch identification missing. Cannot process cancellation.');
@@ -1930,115 +1944,144 @@ export async function handleOrderCancellation(req: express.Request, res: express
         transaction.update(kitchenRef, { prepStatus: 'cancelled', updatedAt: timestamp });
       }
 
-      // Accounting Reversal Entry
-      const subtotal = Number(orderData.subtotal || 0);
-      const discount = Number(orderData.discountAmount || 0);
-      const netRev = Math.max(0, subtotal - discount);
-      const tax = Number(orderData.tax || 0);
-      const totalAmt = Number(orderData.totalAmount || 0);
-      const cogs = Number(orderData.cogs || 0);
-      const payMethod = orderData.paymentMethod || 'cash';
-      const paymentAccountCode = payMethod === 'cash' ? '1010' : '1020';
-      const paymentAccountName = payMethod === 'cash' ? 'Cash on Hand (Register)' : 'Main Bank Account (Premier Bank)';
+      // Accounting Reversal Entry (Skip financial reversal if already fully refunded through customer refund)
+      if (!isAlreadyFullyRefunded) {
+        const subtotal = Number(orderData.subtotal || 0);
+        const discount = Number(orderData.discountAmount || 0);
+        const netRev = Math.max(0, subtotal - discount);
+        const tax = Number(orderData.tax || 0);
+        const deliveryFeeRev = Number(orderData.deliveryFee || 0);
+        const totalAmt = Number(orderData.totalAmount || 0);
+        const cogs = Number(orderData.cogs || 0);
+        const payMethod = String(orderData.paymentMethod || 'cash').toLowerCase();
+        const isOriginalCredit = payMethod === 'credit' || orderData.isCredit === true || orderData.isCredit === 'true';
+        const isOriginalUnpaid = String(orderData.paymentStatus || '').toLowerCase() === 'unpaid' || Number(orderData.paidAmount ?? orderData.paymentAmount ?? 0) <= 0;
 
-      const reversalLines = [
-        {
-          accountId: 'acc_revenue',
-          accountCode: '4010',
-          accountName: 'Restaurant Sales Revenue',
-          debit: netRev,
-          credit: 0,
-          memo: `Revenue Reversal for Cancelled Order #${orderData.orderNumber || orderId}`
-        },
-        {
-          accountId: 'acc_tax',
-          accountCode: '2020',
-          accountName: 'Sales Tax Payable',
-          debit: tax,
-          credit: 0,
-          memo: `Sales Tax Reversal for Cancelled Order #${orderData.orderNumber || orderId}`
-        },
-        {
-          accountId: 'acc_inventory',
-          accountCode: '1030',
-          accountName: 'Food & Beverage Inventory',
-          debit: cogs,
-          credit: 0,
-          memo: `Inventory Restoration for Cancelled Order #${orderData.orderNumber || orderId}`
-        },
-        {
-          accountId: 'acc_cash_bank',
-          accountCode: paymentAccountCode,
-          accountName: paymentAccountName,
-          debit: 0,
-          credit: totalAmt,
-          memo: `Cash/Bank Refund for Cancelled Order #${orderData.orderNumber || orderId}`
-        },
-        {
-          accountId: 'acc_cogs',
-          accountCode: '5010',
-          accountName: 'Cost of Goods Sold (COGS)',
-          debit: 0,
-          credit: cogs,
-          memo: `COGS Reversal for Cancelled Order #${orderData.orderNumber || orderId}`
+        let paymentAccountId = 'acc_cash_bank';
+        let paymentAccountCode = '1010';
+        let paymentAccountName = 'Cash on Hand (Register)';
+        let paymentMemo = `Cash/Bank Refund for Cancelled Order #${orderData.orderNumber || orderId}`;
+
+        if (isOriginalCredit || isOriginalUnpaid) {
+          paymentAccountId = 'acc_ar';
+          paymentAccountCode = '1200';
+          paymentAccountName = 'Accounts Receivable';
+          paymentMemo = `AR Reversal for Cancelled Unpaid/Credit Order #${orderData.orderNumber || orderId}`;
+        } else if (payMethod === 'bank' || payMethod === 'card' || payMethod === 'mobile_money') {
+          paymentAccountId = 'acc_cash_bank';
+          paymentAccountCode = '1020';
+          paymentAccountName = 'Main Bank Account (Premier Bank)';
         }
-      ].filter(l => (l.debit > 0 || l.credit > 0));
 
-      const totalDebit = reversalLines.reduce((s, l) => s + (l.debit || 0), 0);
-      const totalCredit = reversalLines.reduce((s, l) => s + (l.credit || 0), 0);
+        const reversalLines = [
+          {
+            accountId: 'acc_revenue',
+            accountCode: '4010',
+            accountName: 'Restaurant Sales Revenue',
+            debit: netRev,
+            credit: 0,
+            memo: `Revenue Reversal for Cancelled Order #${orderData.orderNumber || orderId}`
+          },
+          {
+            accountId: 'acc_delivery_revenue',
+            accountCode: '4100',
+            accountName: 'Delivery Fee Revenue',
+            debit: deliveryFeeRev,
+            credit: 0,
+            memo: `Delivery Revenue Reversal for Cancelled Order #${orderData.orderNumber || orderId}`
+          },
+          {
+            accountId: 'acc_tax',
+            accountCode: '2020',
+            accountName: 'Sales Tax Payable',
+            debit: tax,
+            credit: 0,
+            memo: `Sales Tax Reversal for Cancelled Order #${orderData.orderNumber || orderId}`
+          },
+          {
+            accountId: 'acc_inventory',
+            accountCode: '1030',
+            accountName: 'Food & Beverage Inventory',
+            debit: cogs,
+            credit: 0,
+            memo: `Inventory Restoration for Cancelled Order #${orderData.orderNumber || orderId}`
+          },
+          {
+            accountId: paymentAccountId,
+            accountCode: paymentAccountCode,
+            accountName: paymentAccountName,
+            debit: 0,
+            credit: totalAmt,
+            memo: paymentMemo
+          },
+          {
+            accountId: 'acc_cogs',
+            accountCode: '5010',
+            accountName: 'Cost of Goods Sold (COGS)',
+            debit: 0,
+            credit: cogs,
+            memo: `COGS Reversal for Cancelled Order #${orderData.orderNumber || orderId}`
+          }
+        ].filter(l => (l.debit > 0 || l.credit > 0));
 
-      if (Math.abs(totalDebit - totalCredit) > 0.001) {
-        throw new Error(`Accounting Rule Error: Unbalanced Cancellation Journal Entry! Total Debit (${totalDebit.toFixed(2)}) !== Total Credit (${totalCredit.toFixed(2)}).`);
-      }
+        const totalDebit = reversalLines.reduce((s, l) => s + (l.debit || 0), 0);
+        const totalCredit = reversalLines.reduce((s, l) => s + (l.credit || 0), 0);
 
-      const jeRef = db.collection('journal_entries').doc();
-      const entryNumber = `REV-JE-${orderData.orderNumber || orderId.slice(0, 6)}`;
-      const journalEntry = {
-        id: jeRef.id,
-        entryNumber,
-        date: dateStr,
-        reference: orderData.orderNumber || orderId,
-        description: `Order Cancellation Reversal for Order #${orderData.orderNumber || orderId}`,
-        source: 'Cancellation',
-        status: 'Posted',
-        totalDebit,
-        totalCredit,
-        lines: reversalLines,
-        branchId: targetBranchId,
-        createdBy: user.name,
-        createdAt: timestamp
-      };
+        if (Math.abs(totalDebit - totalCredit) > 0.001) {
+          throw new Error(`Accounting Rule Error: Unbalanced Cancellation Journal Entry! Total Debit (${totalDebit.toFixed(2)}) !== Total Credit (${totalCredit.toFixed(2)}).`);
+        }
 
-      transaction.set(jeRef, cleanUndefined(journalEntry));
-
-      for (const line of reversalLines) {
-        const jlRef = db.collection('journal_lines').doc();
-        transaction.set(jlRef, cleanUndefined({
-          id: jlRef.id,
-          journalEntryId: jeRef.id,
-          entryNumber,
-          branchId: targetBranchId,
-          ...line,
-          createdAt: timestamp
-        }));
-
-        const ledgerRef = db.collection('ledger').doc();
-        transaction.set(ledgerRef, cleanUndefined({
-          id: ledgerRef.id,
-          accountId: line.accountId,
-          accountCode: line.accountCode,
-          accountName: line.accountName,
-          journalEntryId: jeRef.id,
+        const jeRef = db.collection('journal_entries').doc();
+        const entryNumber = `REV-JE-${orderData.orderNumber || orderId.slice(0, 6)}`;
+        const journalEntry = {
+          id: jeRef.id,
           entryNumber,
           date: dateStr,
-          reference: orderData.orderNumber || orderId,
-          description: line.memo || journalEntry.description,
-          debit: line.debit,
-          credit: line.credit,
-          runningBalance: 0,
+          description: `Automatic General Ledger Reversal for Cancelled Order #${orderData.orderNumber || orderId}`,
           branchId: targetBranchId,
+          referenceType: 'order_cancellation',
+          referenceId: orderId,
+          orderId: orderId,
+          orderNumber: orderData.orderNumber || '',
+          lines: reversalLines,
+          totalDebit: Math.round(totalDebit * 100) / 100,
+          totalCredit: Math.round(totalCredit * 100) / 100,
+          status: 'posted',
+          postedBy: user.name,
           createdAt: timestamp
-        }));
+        };
+
+        transaction.set(jeRef, cleanUndefined(journalEntry));
+
+        for (const line of reversalLines) {
+          const jlRef = db.collection('journal_lines').doc();
+          transaction.set(jlRef, cleanUndefined({
+            id: jlRef.id,
+            journalEntryId: jeRef.id,
+            entryNumber,
+            branchId: targetBranchId,
+            ...line,
+            createdAt: timestamp
+          }));
+
+          const ledgerRef = db.collection('ledger').doc();
+          transaction.set(ledgerRef, cleanUndefined({
+            id: ledgerRef.id,
+            accountId: line.accountId,
+            accountCode: line.accountCode,
+            accountName: line.accountName,
+            journalEntryId: jeRef.id,
+            entryNumber,
+            date: dateStr,
+            reference: orderData.orderNumber || orderId,
+            description: line.memo || journalEntry.description,
+            debit: line.debit,
+            credit: line.credit,
+            runningBalance: 0,
+            branchId: targetBranchId,
+            createdAt: timestamp
+          }));
+        }
       }
 
       // Record Audit Activity Log
@@ -2099,6 +2142,11 @@ export async function handleCustomerRefund(req: express.Request, res: express.Re
       }
 
       const orderData = orderSnap.data() as any;
+
+      if (orderData.status === 'cancelled') {
+        throw new Error(`Cannot refund cancelled Order #${orderData.orderNumber || orderId}. Order is already cancelled.`);
+      }
+
       const targetBranchId = orderData.branchId;
       if (!targetBranchId) {
         throw new Error('Order branch identification missing. Cannot process refund.');
@@ -2146,6 +2194,10 @@ export async function handleCustomerRefund(req: express.Request, res: express.Re
       const existingOrderRefunded = Number(orderData.refundedAmount || 0);
       const currentTotalRefunded = Math.max(totalAlreadyRefunded, existingOrderRefunded);
       const remainingRefundable = originalTotal - currentTotalRefunded;
+
+      if (remainingRefundable <= 0.001 || orderPayStatus === 'refunded') {
+        throw new Error(`Order #${orderData.orderNumber || orderId} is already fully refunded. Additional refunds rejected.`);
+      }
 
       if (refundAmount > remainingRefundable + 0.001) {
         throw new Error(`Refund amount ($${refundAmount.toFixed(2)}) exceeds remaining refundable balance ($${Math.max(0, remainingRefundable).toFixed(2)}) for Order #${orderData.orderNumber || orderId}. Original Total: $${originalTotal.toFixed(2)}, Already Refunded: $${currentTotalRefunded.toFixed(2)}.`);
@@ -6849,6 +6901,7 @@ export async function getFinancialSummaryData(
 
   return {
     accountingStatus,
+    branchId: userBranchId || 'all',
     period: periodOptions?.period || 'all_time',
     sales: Math.round(grossSales * 100) / 100,
     refunds: Math.round(totalRefunds * 100) / 100,

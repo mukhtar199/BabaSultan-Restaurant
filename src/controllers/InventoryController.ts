@@ -14,25 +14,25 @@ export class InventoryController {
   constructor(private repo: IInventoryRepository) {}
 
   // Subscriptions
-  subscribeInventoryItems(callback: (items: InventoryItem[]) => void): () => void {
-    return this.repo.subscribeInventoryItems(callback);
+  subscribeInventoryItems(callback: (items: InventoryItem[]) => void, branchId?: string): () => void {
+    return this.repo.subscribeInventoryItems(callback, branchId);
   }
 
-  subscribeMovements(callback: (movements: InventoryMovement[]) => void): () => void {
-    return this.repo.subscribeMovements(callback);
+  subscribeMovements(callback: (movements: InventoryMovement[]) => void, branchId?: string): () => void {
+    return this.repo.subscribeMovements(callback, branchId);
   }
 
-  subscribePurchaseOrders(callback: (orders: PurchaseOrder[]) => void): () => void {
-    return this.repo.subscribePurchaseOrders(callback);
+  subscribePurchaseOrders(callback: (orders: PurchaseOrder[]) => void, branchId?: string): () => void {
+    return this.repo.subscribePurchaseOrders(callback, branchId);
   }
 
-  subscribeSuppliers(callback: (suppliers: Supplier[]) => void): () => void {
-    return this.repo.subscribeSuppliers(callback);
+  subscribeSuppliers(callback: (suppliers: Supplier[]) => void, branchId?: string): () => void {
+    return this.repo.subscribeSuppliers(callback, branchId);
   }
 
   // Items
-  async getInventoryItems(): Promise<InventoryItem[]> {
-    return this.repo.fetchInventoryItems();
+  async getInventoryItems(branchId?: string): Promise<InventoryItem[]> {
+    return this.repo.fetchInventoryItems(branchId);
   }
 
   async addInventoryItem(item: Omit<InventoryItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<InventoryItem> {

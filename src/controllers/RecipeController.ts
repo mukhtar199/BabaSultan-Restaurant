@@ -16,8 +16,12 @@ export class RecipeController {
   constructor(private recipeRepo: IRecipeRepository) {}
 
   // Recipe Subscriptions & CRUD
-  subscribeRecipes(callback: (recipes: Recipe[]) => void): () => void {
-    return this.recipeRepo.subscribeRecipes(callback);
+  subscribeRecipes(callback: (recipes: Recipe[]) => void, branchId?: string): () => void {
+    return this.recipeRepo.subscribeRecipes(callback, branchId);
+  }
+
+  async fetchRecipes(branchId?: string): Promise<Recipe[]> {
+    return this.recipeRepo.fetchRecipes(branchId);
   }
 
   async getRecipeByProductId(productId: string): Promise<Recipe | null> {
@@ -46,8 +50,12 @@ export class RecipeController {
   }
 
   // Ingredient Subscriptions & CRUD
-  subscribeIngredients(callback: (ingredients: Ingredient[]) => void): () => void {
-    return this.recipeRepo.subscribeIngredients(callback);
+  subscribeIngredients(callback: (ingredients: Ingredient[]) => void, branchId?: string): () => void {
+    return this.recipeRepo.subscribeIngredients(callback, branchId);
+  }
+
+  async fetchIngredients(branchId?: string): Promise<Ingredient[]> {
+    return this.recipeRepo.fetchIngredients(branchId);
   }
 
   async createIngredient(data: Omit<Ingredient, 'id' | 'createdAt' | 'updatedAt'>): Promise<Ingredient> {
@@ -94,8 +102,12 @@ export class RecipeController {
   }
 
   // Waste Management
-  subscribeWasteRecords(callback: (records: WasteRecord[]) => void): () => void {
-    return this.recipeRepo.subscribeWasteRecords(callback);
+  subscribeWasteRecords(callback: (records: WasteRecord[]) => void, branchId?: string): () => void {
+    return this.recipeRepo.subscribeWasteRecords(callback, branchId);
+  }
+
+  async fetchWasteRecords(branchId?: string): Promise<WasteRecord[]> {
+    return this.recipeRepo.fetchWasteRecords(branchId);
   }
 
   async recordWaste(data: Omit<WasteRecord, 'id' | 'createdAt'>) {

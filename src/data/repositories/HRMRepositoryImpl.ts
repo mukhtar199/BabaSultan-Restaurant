@@ -12,6 +12,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db, COLLECTIONS, getAuthToken, getEffectiveBranchId } from '../../lib/firebase';
+import { getMogadishuDateString } from '../../lib/dateUtils';
 import { IHRMRepository } from '../../domain/repositories/IHRMRepository';
 import {
   Employee,
@@ -51,7 +52,7 @@ export class HRMRepositoryImpl implements IHRMRepository {
           dateOfBirth: data.dateOfBirth || '1995-01-01',
           gender: data.gender || 'Male',
           nationality: data.nationality || 'Somali',
-          hireDate: data.hireDate || new Date().toISOString().split('T')[0],
+          hireDate: data.hireDate || getMogadishuDateString(),
           jobTitle: data.jobTitle || data.role || 'Staff Member',
           department: data.department || 'General Operations',
           branchId: data.branchId || data.branch || '',
@@ -99,7 +100,7 @@ export class HRMRepositoryImpl implements IHRMRepository {
       dateOfBirth: data.dateOfBirth || '1995-01-01',
       gender: data.gender || 'Male',
       nationality: data.nationality || 'Somali',
-      hireDate: data.hireDate || new Date().toISOString().split('T')[0],
+      hireDate: data.hireDate || getMogadishuDateString(),
       jobTitle: data.jobTitle || data.role || 'Staff Member',
       department: data.department || 'General Operations',
       branchId: data.branchId || data.branch || '',
@@ -186,7 +187,7 @@ export class HRMRepositoryImpl implements IHRMRepository {
   }
 
   async clockIn(employeeId: string, employeeName: string, notes?: string): Promise<AttendanceRecord> {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getMogadishuDateString();
     const existing = await this.getAttendanceRecords({ employeeId, date: today });
     const active = existing.find((r) => !r.clockOut);
     if (active) return active;
@@ -691,7 +692,7 @@ export class HRMRepositoryImpl implements IHRMRepository {
 
   async getHRMAnalytics(): Promise<HRMAnalyticsData> {
     const employees = await this.getAllEmployees();
-    const today = new Date().toISOString().split('T')[0];
+    const today = getMogadishuDateString();
     const attendance = await this.getAttendanceRecords({ date: today });
     const leave = await this.getLeaveRequests();
     const currentMonth = today.substring(0, 7);

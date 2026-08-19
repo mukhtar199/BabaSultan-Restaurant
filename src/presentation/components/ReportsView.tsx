@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 import { Order, Product, Ingredient, Expense, Employee, Supplier, Purchase, Customer } from '../../types';
 import { FilterBar, ReportFilters } from './reports/FilterBar';
 import { BIAnalyticsDashboard } from './reports/BIAnalyticsDashboard';
@@ -43,6 +44,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   suppliers: initialSuppliers,
   purchases: initialPurchases,
 }) => {
+  const { userRecord, role } = useAuth();
   // 1. Real-Time Firestore Sync & Local Fallback State
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [products, setProducts] = useState<Product[]>(initialProducts);
@@ -53,10 +55,21 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases);
   const [customers, setCustomers] = useState<Customer[]>([]);
 
-  // Subscribe to real-time collections if available
+  // Subscribe to real-time collections with branch isolation
   useEffect(() => {
+    const userRoleStr = (userRecord?.role || role || '').toLowerCase().trim();
+    const isHqUser = userRoleStr === 'owner' || (userRoleStr === 'admin' && (!userRecord?.branchId || userRecord?.branchId === 'all'));
+    const userBranch = userRecord?.branchId || (userRecord as any)?.branch;
+    const isBranchScoped = !isHqUser && Boolean(userBranch) && userBranch !== 'all';
+
+    const buildBranchQuery = (collectionName: string) => {
+      return isBranchScoped
+        ? query(collection(db, collectionName), where('branchId', '==', userBranch))
+        : query(collection(db, collectionName));
+    };
+
     const unsubOrders = onSnapshot(
-      query(collection(db, COLLECTIONS.ORDERS)),
+      buildBranchQuery(COLLECTIONS.ORDERS),
       (snap) => {
         const list: Order[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Order));
@@ -66,7 +79,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
 
     const unsubProducts = onSnapshot(
-      query(collection(db, COLLECTIONS.PRODUCTS)),
+      buildBranchQuery(COLLECTIONS.PRODUCTS),
       (snap) => {
         const list: Product[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Product));
@@ -76,7 +89,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
 
     const unsubIngredients = onSnapshot(
-      query(collection(db, COLLECTIONS.INGREDIENTS)),
+      buildBranchQuery(COLLECTIONS.INGREDIENTS),
       (snap) => {
         const list: Ingredient[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Ingredient));
@@ -86,7 +99,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
 
     const unsubExpenses = onSnapshot(
-      query(collection(db, COLLECTIONS.EXPENSES)),
+      buildBranchQuery(COLLECTIONS.EXPENSES),
       (snap) => {
         const list: Expense[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Expense));
@@ -96,7 +109,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
 
     const unsubEmployees = onSnapshot(
-      query(collection(db, COLLECTIONS.EMPLOYEES)),
+      buildBranchQuery(COLLECTIONS.EMPLOYEES),
       (snap) => {
         const list: Employee[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Employee));
@@ -106,7 +119,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
 
     const unsubCustomers = onSnapshot(
-      query(collection(db, COLLECTIONS.CUSTOMERS)),
+      buildBranchQuery(COLLECTIONS.CUSTOMERS),
       (snap) => {
         const list: Customer[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Customer));
@@ -123,7 +136,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       unsubEmployees();
       unsubCustomers();
     };
-  }, []);
+  }, [userRecord?.branchId, userRecord?.role, role]);
 
   // Sync initial props if updated
   useEffect(() => {

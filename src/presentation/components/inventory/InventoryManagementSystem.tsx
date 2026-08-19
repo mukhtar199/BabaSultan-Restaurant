@@ -43,9 +43,14 @@ export const InventoryManagementSystem: React.FC<InventoryManagementSystemProps>
   userRole = 'Admin',
   userBranch = 'Main Branch'
 }) => {
-  const { language } = useAuth();
+  const { language, userRecord, role } = useAuth();
   // Controller instantiation
   const controller = useMemo(() => new InventoryController(new InventoryRepositoryImpl()), []);
+
+  const effectiveRole = String(role || userRecord?.role || userRole || '').toLowerCase().trim();
+  const rawUserBranch = userRecord?.branchId || (userRecord as any)?.branch || userBranch;
+  const isHqUser = effectiveRole === 'owner' || (effectiveRole === 'admin' && (!rawUserBranch || rawUserBranch === 'all'));
+  const effectiveBranchId = isHqUser ? undefined : rawUserBranch;
 
   // Language state
   const currentLang = (language || 'en') as InventoryLang;
@@ -79,10 +84,10 @@ export const InventoryManagementSystem: React.FC<InventoryManagementSystemProps>
 
   // Live Subscriptions on Mount
   useEffect(() => {
-    const unsubItems = controller.subscribeInventoryItems(setItems);
-    const unsubMovements = controller.subscribeMovements(setMovements);
-    const unsubPOs = controller.subscribePurchaseOrders(setPurchaseOrders);
-    const unsubSuppliers = controller.subscribeSuppliers(setSuppliers);
+    const unsubItems = controller.subscribeInventoryItems(setItems, effectiveBranchId);
+    const unsubMovements = controller.subscribeMovements(setMovements, effectiveBranchId);
+    const unsubPOs = controller.subscribePurchaseOrders(setPurchaseOrders, effectiveBranchId);
+    const unsubSuppliers = controller.subscribeSuppliers(setSuppliers, effectiveBranchId);
 
     return () => {
       unsubItems();
@@ -90,7 +95,7 @@ export const InventoryManagementSystem: React.FC<InventoryManagementSystemProps>
       unsubPOs();
       unsubSuppliers();
     };
-  }, [controller]);
+  }, [controller, effectiveBranchId]);
 
   // Compute Alerts
   const alerts = useMemo(

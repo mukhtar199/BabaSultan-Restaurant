@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   collection, 
-  onSnapshot 
+  onSnapshot,
+  query,
+  where
 } from 'firebase/firestore';
+import { useAuth } from '../presentation/context/AuthContext';
 import { 
   db, 
   COLLECTIONS, 
@@ -71,6 +74,7 @@ interface Props {
 }
 
 export const AIOperationsManagerView: React.FC<Props> = ({ language: initialLanguage }) => {
+  const { userRecord, role } = useAuth();
   const [currentLang, setCurrentLang] = useState<Language>(initialLanguage || 'en');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'kitchen' | 'staff' | 'delivery' | 'customer' | 'assistant'>('dashboard');
 
@@ -108,70 +112,81 @@ export const AIOperationsManagerView: React.FC<Props> = ({ language: initialLang
   const [inputQuestion, setInputQuestion] = useState<string>('');
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
-  // Firestore Real-time Listeners
+  // Firestore Real-time Listeners with Branch Isolation
   useEffect(() => {
     setIsLoading(true);
+
+    const userRoleStr = (userRecord?.role || role || '').toLowerCase().trim();
+    const isHqUser = userRoleStr === 'owner' || (userRoleStr === 'admin' && (!userRecord?.branchId || userRecord?.branchId === 'all'));
+    const userBranch = userRecord?.branchId || (userRecord as any)?.branch;
+    const isBranchScoped = !isHqUser && Boolean(userBranch) && userBranch !== 'all';
 
     const handleErr = (col: string, err: any) => {
       console.warn(`Operations manager listener error on ${col}:`, err);
       setIsLoading(false);
     };
 
-    const unsubOrders = onSnapshot(collection(db, COLLECTIONS.ORDERS), (snap) => {
+    const buildBranchQuery = (collectionName: string) => {
+      return isBranchScoped
+        ? query(collection(db, collectionName), where('branchId', '==', userBranch))
+        : query(collection(db, collectionName));
+    };
+
+    const unsubOrders = onSnapshot(buildBranchQuery(COLLECTIONS.ORDERS), (snap) => {
       const list: Order[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Order));
       setOrders(list);
     }, err => handleErr('ORDERS', err));
 
-    const unsubProducts = onSnapshot(collection(db, COLLECTIONS.PRODUCTS), (snap) => {
+    const unsubProducts = onSnapshot(buildBranchQuery(COLLECTIONS.PRODUCTS), (snap) => {
       const list: Product[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Product));
       setProducts(list);
     }, err => handleErr('PRODUCTS', err));
 
-    const unsubIngredients = onSnapshot(collection(db, COLLECTIONS.INGREDIENTS), (snap) => {
+    const unsubIngredients = onSnapshot(buildBranchQuery(COLLECTIONS.INGREDIENTS), (snap) => {
       const list: Ingredient[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Ingredient));
       setIngredients(list);
     }, err => handleErr('INGREDIENTS', err));
 
-    const unsubExpenses = onSnapshot(collection(db, COLLECTIONS.EXPENSES), (snap) => {
+    const unsubExpenses = onSnapshot(buildBranchQuery(COLLECTIONS.EXPENSES), (snap) => {
       const list: Expense[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Expense));
       setExpenses(list);
     }, err => handleErr('EXPENSES', err));
 
-    const unsubEmployees = onSnapshot(collection(db, COLLECTIONS.EMPLOYEES), (snap) => {
+    const unsubEmployees = onSnapshot(buildBranchQuery(COLLECTIONS.EMPLOYEES), (snap) => {
       const list: Employee[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Employee));
       setEmployees(list);
     }, err => handleErr('EMPLOYEES', err));
 
-    const unsubSuppliers = onSnapshot(collection(db, COLLECTIONS.SUPPLIERS), (snap) => {
+    const unsubSuppliers = onSnapshot(buildBranchQuery(COLLECTIONS.SUPPLIERS), (snap) => {
       const list: Supplier[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Supplier));
       setSuppliers(list);
     }, err => handleErr('SUPPLIERS', err));
 
-    const unsubDrivers = onSnapshot(collection(db, COLLECTIONS.DRIVERS), (snap) => {
+    const unsubDrivers = onSnapshot(buildBranchQuery(COLLECTIONS.DRIVERS), (snap) => {
       const list: DeliveryDriver[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as DeliveryDriver));
       setDrivers(list);
     }, err => handleErr('DRIVERS', err));
 
-    const unsubStations = onSnapshot(collection(db, COLLECTIONS.STATIONS), (snap) => {
+    const unsubStations = onSnapshot(buildBranchQuery(COLLECTIONS.STATIONS), (snap) => {
       const list: KitchenStation[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as KitchenStation));
       setStations(list);
     }, err => handleErr('STATIONS', err));
 
-    const unsubAttendance = onSnapshot(collection(db, COLLECTIONS.ATTENDANCE), (snap) => {
+    const unsubAttendance = onSnapshot(buildBranchQuery(COLLECTIONS.ATTENDANCE), (snap) => {
       const list: EmployeeAttendance[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as EmployeeAttendance));
       setAttendance(list);
     }, err => handleErr('ATTENDANCE', err));
 
-    const unsubReservations = onSnapshot(collection(db, COLLECTIONS.RESERVATIONS), (snap) => {
+    const unsubReservations = onSnapshot(buildBranchQuery(COLLECTIONS.RESERVATIONS), (snap) => {
       const list: Reservation[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as Reservation));
       setReservations(list);
@@ -183,13 +198,13 @@ export const AIOperationsManagerView: React.FC<Props> = ({ language: initialLang
       setBranches(list);
     }, err => handleErr('BRANCHES', err));
 
-    const unsubFeedbacks = onSnapshot(collection(db, COLLECTIONS.FEEDBACKS), (snap) => {
+    const unsubFeedbacks = onSnapshot(buildBranchQuery(COLLECTIONS.FEEDBACKS), (snap) => {
       const list: CustomerFeedback[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as CustomerFeedback));
       setFeedbacks(list);
     }, err => handleErr('FEEDBACKS', err));
 
-    const unsubEquipment = onSnapshot(collection(db, COLLECTIONS.EQUIPMENT), (snap) => {
+    const unsubEquipment = onSnapshot(buildBranchQuery(COLLECTIONS.EQUIPMENT), (snap) => {
       const list: EquipmentItem[] = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() } as EquipmentItem));
       setEquipment(list);
@@ -211,7 +226,7 @@ export const AIOperationsManagerView: React.FC<Props> = ({ language: initialLang
       unsubFeedbacks();
       unsubEquipment();
     };
-  }, []);
+  }, [userRecord?.branchId, userRecord?.role, role]);
 
   // Compute Operations Analytics from real data package
   const dataPackage = {

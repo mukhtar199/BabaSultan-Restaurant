@@ -15,6 +15,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { validateCouponInput } from '../../../domain/validation/customerValidation';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 
 const repo = new CustomerRepositoryImpl();
 
@@ -32,7 +33,7 @@ export const CouponsView: React.FC = () => {
     discountValue: 10,
     minOrderAmount: 20,
     maxDiscountAmount: 15,
-    expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    expiryDate: getMogadishuDateString(Date.now() + 30 * 24 * 60 * 60 * 1000),
     usageLimit: 100,
     targetLevel: '' as MembershipLevel | '',
     isBirthdayOffer: false,
@@ -68,7 +69,7 @@ export const CouponsView: React.FC = () => {
       discountValue: 10,
       minOrderAmount: 20,
       maxDiscountAmount: 15,
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      expiryDate: getMogadishuDateString(Date.now() + 30 * 24 * 60 * 60 * 1000),
       usageLimit: 100,
       targetLevel: '',
       isBirthdayOffer: false,

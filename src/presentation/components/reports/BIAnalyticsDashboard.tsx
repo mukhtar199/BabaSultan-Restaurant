@@ -1,4 +1,5 @@
 import React from 'react';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 import {
   ResponsiveContainer,
   LineChart,
@@ -94,8 +95,7 @@ export const BIAnalyticsDashboard: React.FC<BIAnalyticsDashboardProps> = ({
     totalRegisteredCustomers > 0 ? (repeatCustomers / totalRegisteredCustomers) * 100 : 0;
 
   // 2. Sales Period Breakdown (Daily, Weekly, Monthly, Yearly)
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getMogadishuDateString();
 
   const dailySales = completedOrders
     .filter((o) => (o.createdAt || '').startsWith(todayStr))

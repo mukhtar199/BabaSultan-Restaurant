@@ -14,6 +14,7 @@ import {
   CPAAnomaly,
   CPARecommendation
 } from '../types';
+import { getMogadishuDateString } from './dateUtils';
 
 export interface CPADataInput {
   orders: Order[];
@@ -31,7 +32,7 @@ export interface CPADataInput {
 
 export function calculateCPAMetrics(data: CPADataInput): CPAMetrics {
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getMogadishuDateString();
 
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -49,7 +50,7 @@ export function calculateCPAMetrics(data: CPADataInput): CPAMetrics {
 
   completedOrders.forEach(o => {
     const orderDate = new Date(o.createdAt);
-    const orderDateStr = orderDate.toISOString().split('T')[0];
+    const orderDateStr = getMogadishuDateString(o.createdAt);
 
     grossRevenue += o.totalAmount;
     totalCogs += o.cogs || 0;

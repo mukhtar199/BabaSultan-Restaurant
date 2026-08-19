@@ -8,6 +8,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db, COLLECTIONS, addExpenseFirestore, getAuthToken } from '../../lib/firebase';
+import { getMogadishuDateString } from '../../lib/dateUtils';
 import {
   Account,
   AccountType,
@@ -305,7 +306,7 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
 
     // Post balanced Journal Entry via server endpoint
     await this.createJournalEntry({
-      date: new Date().toISOString().split('T')[0],
+      date: getMogadishuDateString(),
       reference,
       description: `Fund Transfer: ${fromAcc.name} -> ${toAcc.name} (${description})`,
       source: 'Manual',

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 import { KPICard } from './KPICard';
 import {
   SalesTrendChart,
@@ -60,7 +61,7 @@ export const OwnerView: React.FC<OwnerViewProps> = ({
   const d: Record<string, any> = t.dashboard || {};
 
   // 1. Financial Calculations
-  const todayIso = new Date().toISOString().split('T')[0];
+  const todayIso = getMogadishuDateString();
 
   const totalSales = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { Product, Order, Customer, SelectedOptionChoice, OrderType } from '../../types';
 import { SYSTEM_CONFIG } from '../../constants';
 import { CartItem, POSCheckoutPayload, ReceiptData } from '../../domain/entities/pos';
@@ -99,7 +99,21 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
       setIsTaxLoading(true);
       setTaxConfigError(null);
       try {
-        const snap = await getDocs(collection(db, COLLECTIONS.TAXES));
+        const taxesColl = collection(db, COLLECTIONS.TAXES);
+        const q = isHQUser
+          ? query(taxesColl)
+          : (currentBranchId ? query(taxesColl, where('branchId', '==', currentBranchId)) : null);
+
+        if (!q) {
+          if (isMounted) {
+            setTaxRatePercent(null);
+            setTaxConfigError('No branch assigned. Cannot load branch tax configuration.');
+            setIsTaxLoading(false);
+          }
+          return;
+        }
+
+        const snap = await getDocs(q);
         if (!snap.empty && isMounted) {
           const activeTaxes = snap.docs
             .map(d => d.data() as any)
@@ -141,7 +155,7 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
     };
     loadBranchTaxRate();
     return () => { isMounted = false; };
-  }, [currentBranchId]);
+  }, [currentBranchId, isHQUser]);
 
   // Categories list
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];

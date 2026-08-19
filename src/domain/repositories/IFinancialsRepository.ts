@@ -6,4 +6,5 @@ export interface IFinancialsRepository {
   createExpense(payload: NewExpensePayload, branchId?: string): Promise<Expense>;
   fetchFinancialSummary(branchId?: string): Promise<FinancialSummary>;
   addBankTransaction(payload: BankTransactionPayload): Promise<void>;
+  getActiveTaxConfig(branchId?: string): Promise<any>;
 }

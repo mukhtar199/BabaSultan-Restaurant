@@ -121,13 +121,21 @@ function ERPAppContent() {
       setIsOrdersLoading(false);
     });
 
-    const unsubProducts = onSnapshot(collection(db, COLLECTIONS.PRODUCTS), (snapshot) => {
+    const productsQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.PRODUCTS), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.PRODUCTS));
+
+    const unsubProducts = onSnapshot(productsQuery, (snapshot) => {
       setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
     }, (err) => {
       console.warn('Products listener notice:', err?.message || err);
     });
 
-    const unsubIngredients = onSnapshot(collection(db, COLLECTIONS.INGREDIENTS), (snapshot) => {
+    const ingredientsQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.INGREDIENTS), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.INGREDIENTS));
+
+    const unsubIngredients = onSnapshot(ingredientsQuery, (snapshot) => {
       setIngredients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ingredient)));
     }, (err) => {
       console.warn('Ingredients listener notice:', err?.message || err);
@@ -179,7 +187,11 @@ function ERPAppContent() {
       console.warn('Salaries listener notice:', err?.message || err);
     });
 
-    const unsubSuppliers = onSnapshot(collection(db, COLLECTIONS.SUPPLIERS), (snapshot) => {
+    const suppliersQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.SUPPLIERS), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.SUPPLIERS));
+
+    const unsubSuppliers = onSnapshot(suppliersQuery, (snapshot) => {
       setSuppliers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Supplier)));
     }, (err) => {
       console.warn('Suppliers listener notice:', err?.message || err);
@@ -221,7 +233,11 @@ function ERPAppContent() {
       console.warn('Bank Transactions listener notice:', err?.message || err);
     });
 
-    const unsubAccounts = onSnapshot(collection(db, COLLECTIONS.ACCOUNTS), (snapshot) => {
+    const accountsQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.ACCOUNTS), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.ACCOUNTS));
+
+    const unsubAccounts = onSnapshot(accountsQuery, (snapshot) => {
       setAccounts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinancialAccount)));
     }, (err) => {
       console.warn('Accounts listener notice:', err?.message || err);

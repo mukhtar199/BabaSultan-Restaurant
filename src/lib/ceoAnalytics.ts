@@ -16,6 +16,7 @@ import {
   EquipmentItem, 
   BankTransaction 
 } from '../types';
+import { getMogadishuDateString } from './dateUtils';
 
 export type HealthRating = 'Excellent' | 'Good' | 'Average' | 'Poor' | 'Critical';
 
@@ -133,8 +134,7 @@ export function calculateCEOAnalytics(data: CEODataPackage) {
     bankTransactions = []
   } = data;
 
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getMogadishuDateString();
 
   // 1. REVENUE, PROFIT & EXPENSES
   const completedOrders = orders.filter(o => o.status === 'completed' || o.prepStatus === 'delivered');

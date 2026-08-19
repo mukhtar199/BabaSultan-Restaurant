@@ -30,6 +30,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { getMogadishuDateString } from '../../../lib/dateUtils';
 import { AccountingController } from '../../../controllers/AccountingController';
 import {
   Account,
@@ -109,7 +110,7 @@ export const AccountingManagementView: React.FC = () => {
   const [newAccDesc, setNewAccDesc] = useState<string>('');
 
   // 2. Journal Entry Form
-  const [jeDate, setJeDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [jeDate, setJeDate] = useState<string>(getMogadishuDateString());
   const [jeReference, setJeReference] = useState<string>('');
   const [jeDescription, setJeDescription] = useState<string>('');
   const [jeLines, setJeLines] = useState<{ accountId: string; debit: number; credit: number; memo: string }[]>([
@@ -305,7 +306,7 @@ export const AccountingManagementView: React.FC = () => {
         expenseAccountId: expAccount || accounts.find(a => a.type === 'Expense')?.id || '',
         paidFromAccountId: payAcc,
         vendorName: expVendor,
-        date: new Date().toISOString().split('T')[0],
+        date: getMogadishuDateString(),
         branchId: activeBranchId,
         branch: activeBranchName,
         status: 'Paid'
@@ -327,7 +328,7 @@ export const AccountingManagementView: React.FC = () => {
       await controller.addARPayment(selectedReceivable.id, {
         amount: Number(arPayAmount),
         paymentMethod: arPayMethod,
-        date: new Date().toISOString().split('T')[0],
+        date: getMogadishuDateString(),
         notes: 'Customer balance settlement'
       });
       setIsARPaymentModalOpen(false);
@@ -346,7 +347,7 @@ export const AccountingManagementView: React.FC = () => {
       await controller.addAPPayment(selectedPayable.id, {
         amount: Number(apPayAmount),
         paymentMethod: apPayMethod,
-        date: new Date().toISOString().split('T')[0],
+        date: getMogadishuDateString(),
         notes: 'Supplier bill payment'
       });
       setIsAPPaymentModalOpen(false);

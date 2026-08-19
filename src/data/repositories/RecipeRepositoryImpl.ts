@@ -43,9 +43,11 @@ export class RecipeRepositoryImpl implements IRecipeRepository {
   // ==========================================
   // RECIPES
   // ==========================================
-  async fetchRecipes(): Promise<Recipe[]> {
+  async fetchRecipes(branchId?: string): Promise<Recipe[]> {
     try {
-      const q = query(collection(db, RECIPES_COLL), orderBy('productName', 'asc'));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, RECIPES_COLL), where('branchId', '==', branchId), orderBy('productName', 'asc'))
+        : query(collection(db, RECIPES_COLL), orderBy('productName', 'asc'));
       const snap = await getDocs(q);
       const list: Recipe[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Recipe));
@@ -56,8 +58,10 @@ export class RecipeRepositoryImpl implements IRecipeRepository {
     }
   }
 
-  subscribeRecipes(callback: (recipes: Recipe[]) => void): () => void {
-    const q = query(collection(db, RECIPES_COLL), orderBy('productName', 'asc'));
+  subscribeRecipes(callback: (recipes: Recipe[]) => void, branchId?: string): () => void {
+    const q = branchId && branchId !== 'all'
+      ? query(collection(db, RECIPES_COLL), where('branchId', '==', branchId), orderBy('productName', 'asc'))
+      : query(collection(db, RECIPES_COLL), orderBy('productName', 'asc'));
     return onSnapshot(
       q,
       (snap) => {
@@ -190,9 +194,11 @@ export class RecipeRepositoryImpl implements IRecipeRepository {
   // ==========================================
   // INGREDIENTS
   // ==========================================
-  async fetchIngredients(): Promise<Ingredient[]> {
+  async fetchIngredients(branchId?: string): Promise<Ingredient[]> {
     try {
-      const q = query(collection(db, INGREDIENTS_COLL), orderBy('name', 'asc'));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, INGREDIENTS_COLL), where('branchId', '==', branchId), orderBy('name', 'asc'))
+        : query(collection(db, INGREDIENTS_COLL), orderBy('name', 'asc'));
       const snap = await getDocs(q);
       const list: Ingredient[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Ingredient));
@@ -202,8 +208,10 @@ export class RecipeRepositoryImpl implements IRecipeRepository {
     }
   }
 
-  subscribeIngredients(callback: (ingredients: Ingredient[]) => void): () => void {
-    const q = query(collection(db, INGREDIENTS_COLL), orderBy('name', 'asc'));
+  subscribeIngredients(callback: (ingredients: Ingredient[]) => void, branchId?: string): () => void {
+    const q = branchId && branchId !== 'all'
+      ? query(collection(db, INGREDIENTS_COLL), where('branchId', '==', branchId), orderBy('name', 'asc'))
+      : query(collection(db, INGREDIENTS_COLL), orderBy('name', 'asc'));
     return onSnapshot(
       q,
       (snap) => {
@@ -575,9 +583,11 @@ export class RecipeRepositoryImpl implements IRecipeRepository {
   // ==========================================
   // WASTE MANAGEMENT
   // ==========================================
-  async fetchWasteRecords(): Promise<WasteRecord[]> {
+  async fetchWasteRecords(branchId?: string): Promise<WasteRecord[]> {
     try {
-      const q = query(collection(db, WASTE_RECORDS_COLL), orderBy('createdAt', 'desc'));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, WASTE_RECORDS_COLL), where('branchId', '==', branchId), orderBy('createdAt', 'desc'))
+        : query(collection(db, WASTE_RECORDS_COLL), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
       const list: WasteRecord[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as WasteRecord));
@@ -587,8 +597,10 @@ export class RecipeRepositoryImpl implements IRecipeRepository {
     }
   }
 
-  subscribeWasteRecords(callback: (records: WasteRecord[]) => void): () => void {
-    const q = query(collection(db, WASTE_RECORDS_COLL), orderBy('createdAt', 'desc'));
+  subscribeWasteRecords(callback: (records: WasteRecord[]) => void, branchId?: string): () => void {
+    const q = branchId && branchId !== 'all'
+      ? query(collection(db, WASTE_RECORDS_COLL), where('branchId', '==', branchId), orderBy('createdAt', 'desc'))
+      : query(collection(db, WASTE_RECORDS_COLL), orderBy('createdAt', 'desc'));
     return onSnapshot(
       q,
       (snap) => {

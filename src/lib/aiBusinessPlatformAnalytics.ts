@@ -17,6 +17,7 @@ import {
   BankTransaction,
   Customer
 } from '../types';
+import { getMogadishuDateString } from './dateUtils';
 
 export interface AIPlatformDataPackage {
   orders: Order[];
@@ -69,8 +70,7 @@ export function calculateAIBusinessPlatformAnalytics(data: AIPlatformDataPackage
     customers = []
   } = data;
 
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getMogadishuDateString();
 
   // 1. REVENUE, PROFIT & EXPENSES
   const completedOrders = orders.filter(o => o.status === 'completed' || o.prepStatus === 'delivered');
