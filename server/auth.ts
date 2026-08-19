@@ -12,33 +12,36 @@ export interface AuthenticatedUser {
   idToken: string;
 }
 
+const KNOWN_BRANCH_ALIASES: Record<string, string> = {
+  'all': 'all',
+  'main_branch_01': 'main_branch_01',
+  'branch_hq_01': 'branch_hq_01',
+  'branch_hargeisa_01': 'branch_hargeisa_01',
+  'branch_kismayo_01': 'branch_kismayo_01',
+  'hq': 'branch_hq_01',
+  'hq-mog-01': 'branch_hq_01',
+  'br-001': 'branch_hq_01',
+  'mogadishu main': 'branch_hq_01',
+  'headquarters': 'branch_hq_01',
+  'main branch': 'branch_hq_01',
+  'main flagship branch': 'branch_hq_01',
+  'br-har-02': 'branch_hargeisa_01',
+  'hargeisa branch': 'branch_hargeisa_01',
+  'hargeisa flagship branch': 'branch_hargeisa_01',
+  'br-kis-03': 'branch_kismayo_01',
+  'kismayo branch': 'branch_kismayo_01',
+  'kismayo coastal express': 'branch_kismayo_01',
+  'branch_a': 'branch_a',
+  'branch_b': 'branch_b'
+};
+
 export function normalizeCanonicalBranchId(rawBranch?: string | null): string {
   if (!rawBranch || typeof rawBranch !== 'string') return '';
   const trimmed = rawBranch.trim();
   if (!trimmed) return '';
-  if (trimmed === 'all') return 'all';
   const lower = trimmed.toLowerCase();
-  if (lower === 'main_branch_01') return 'main_branch_01';
-  if (lower === 'branch_hq_01') return 'branch_hq_01';
-  if (lower === 'branch_hargeisa_01') return 'branch_hargeisa_01';
-  if (lower === 'branch_kismayo_01') return 'branch_kismayo_01';
-
-  if (lower.includes('hargeisa') || lower === 'br-har-02') {
-    return 'branch_hargeisa_01';
-  }
-  if (lower.includes('kismayo') || lower === 'br-kis-03') {
-    return 'branch_kismayo_01';
-  }
-  if (
-    lower === 'hq' ||
-    lower.includes('main') ||
-    lower.includes('flagship') ||
-    lower.includes('headquarters') ||
-    lower.includes('mogadishu') ||
-    lower === 'hq-mog-01' ||
-    lower === 'br-001'
-  ) {
-    return 'branch_hq_01';
+  if (KNOWN_BRANCH_ALIASES[lower]) {
+    return KNOWN_BRANCH_ALIASES[lower];
   }
   return trimmed;
 }
@@ -48,8 +51,8 @@ export function areBranchesMatching(b1: string, b2: string): boolean {
   const n1 = normalizeCanonicalBranchId(b1);
   const n2 = normalizeCanonicalBranchId(b2);
   if (n1 && n2 && n1 === n2) return true;
-  const isHQ1 = b1 === 'HQ' || b1 === 'branch_hq_01' || b1 === 'main_branch_01' || b1 === 'hq-mog-01' || n1 === 'branch_hq_01' || n1 === 'main_branch_01';
-  const isHQ2 = b2 === 'HQ' || b2 === 'branch_hq_01' || b2 === 'main_branch_01' || b2 === 'hq-mog-01' || n2 === 'branch_hq_01' || n2 === 'main_branch_01';
+  const isHQ1 = n1 === 'branch_hq_01' || n1 === 'main_branch_01' || n1 === 'hq-mog-01';
+  const isHQ2 = n2 === 'branch_hq_01' || n2 === 'main_branch_01' || n2 === 'hq-mog-01';
   if (isHQ1 && isHQ2) return true;
   return false;
 }
@@ -183,16 +186,26 @@ export async function authenticateTrustedUser(
   }
 }
 
+export function isHQRoleOrClaim(user: { role: string; branchId?: string; isOwner?: boolean; isHQ?: boolean; isAdmin?: boolean }): boolean {
+  const normRole = (user.role || '').trim();
+  const isOwner = ['Owner', 'owner'].includes(normRole) || user.isOwner === true;
+  const isHQAdmin = (['Admin', 'admin'].includes(normRole) || user.isAdmin === true) && user.isHQ === true;
+  return isOwner || isHQAdmin;
+}
+
 export function checkBranchAuthorization(
-  user: { role: string; branchId: string },
+  user: { role: string; branchId: string; isOwner?: boolean; isHQ?: boolean; isAdmin?: boolean },
   requestedBranch?: string
 ): { authorized: boolean; targetBranchId: string; error?: string } {
-  const isHQAdmin = ['Owner', 'owner'].includes(user.role) || user.branchId === 'all';
+  const isHQAdmin = isHQRoleOrClaim(user);
   const normUserBranch = normalizeCanonicalBranchId(user.branchId);
   const normReqBranch = requestedBranch !== undefined ? normalizeCanonicalBranchId(requestedBranch) : undefined;
 
   if (isHQAdmin) {
-    const target = normReqBranch || normUserBranch;
+    let target = normReqBranch || normUserBranch;
+    if (target === 'all') {
+      target = '';
+    }
     if (!target || target.trim() === '') {
       if (process.env.VITEST === 'true' || process.env.NODE_ENV === 'test') {
         return { authorized: true, targetBranchId: 'main_branch_01' };
@@ -206,7 +219,16 @@ export function checkBranchAuthorization(
     return { authorized: true, targetBranchId: target.trim() };
   }
 
-  if (!normUserBranch || normUserBranch.trim() === '') {
+  // Non-HQ user: CANNOT use 'all' to bypass branch restrictions!
+  if (normReqBranch === 'all') {
+    return {
+      authorized: false,
+      targetBranchId: '',
+      error: 'Access denied: Non-HQ user is not authorized for global "all" branch scope.'
+    };
+  }
+
+  if (!normUserBranch || normUserBranch.trim() === '' || normUserBranch === 'all') {
     return {
       authorized: false,
       targetBranchId: '',
@@ -235,9 +257,9 @@ export function checkBranchAuthorization(
 }
 
 export function validateUserPrivilegeUpdate(
-  updater: { role: string; isAdmin?: boolean; isOwner?: boolean; branchId?: string },
-  targetCurrent: { role: string; isAdmin?: boolean; isOwner?: boolean; branchId?: string },
-  updatePayload: { role?: string; isAdmin?: boolean; isOwner?: boolean; permissions?: string[]; branchId?: string; branch?: string }
+  updater: { role: string; isAdmin?: boolean; isOwner?: boolean; isHQ?: boolean; branchId?: string },
+  targetCurrent: { role: string; isAdmin?: boolean; isOwner?: boolean; isHQ?: boolean; branchId?: string },
+  updatePayload: { role?: string; isAdmin?: boolean; isOwner?: boolean; isHQ?: boolean; permissions?: string[]; branchId?: string; branch?: string }
 ): { allowed: boolean; error?: string } {
   const isOwner = ['Owner', 'owner'].includes(updater.role) || updater.isOwner === true;
   const isAdmin = isOwner || ['Admin', 'admin'].includes(updater.role) || updater.isAdmin === true;
@@ -257,6 +279,9 @@ export function validateUserPrivilegeUpdate(
     if (updatePayload.isAdmin === true || ['Admin', 'admin'].includes(updatePayload.role || '')) {
       return { allowed: false, error: 'Admin cannot grant Admin role or set isAdmin=true.' };
     }
+    if (updatePayload.isHQ === true) {
+      return { allowed: false, error: 'Admin cannot grant isHQ privilege.' };
+    }
     if (updatePayload.permissions && updatePayload.permissions.length > 0) {
       return { allowed: false, error: 'Admin cannot grant arbitrary custom permissions.' };
     }
@@ -270,6 +295,7 @@ export function validateUserPrivilegeUpdate(
   if (updatePayload.role !== undefined ||
       updatePayload.isAdmin !== undefined ||
       updatePayload.isOwner !== undefined ||
+      updatePayload.isHQ !== undefined ||
       updatePayload.permissions !== undefined ||
       updatePayload.branchId !== undefined ||
       updatePayload.branch !== undefined) {

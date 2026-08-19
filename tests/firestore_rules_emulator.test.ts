@@ -217,4 +217,90 @@ describe('FIRESTORE SECURITY RULES EMULATOR SUITE', () => {
       quantity: 999
     }));
   });
+
+  // 8. P0-1: PRIVILEGE ESCALATION VIA isHQ BLOCKED
+  it('8. Strictly blocks user from escalating privileges via isHQ in Firestore', async () => {
+    const cashierADb = testEnv.authenticatedContext('cashier_a').firestore();
+    // Attempting to set isHQ=true on self profile update is rejected
+    await assertFails(updateDoc(doc(cashierADb, 'users', 'cashier_a'), {
+      isHQ: true
+    }));
+
+    // Attempting to create new user with isHQ=true is rejected
+    await assertFails(setDoc(doc(cashierADb, 'users', 'new_hacked_user'), {
+      id: 'new_hacked_user',
+      isHQ: true,
+      role: 'Cashier',
+      branchId: 'BR-001'
+    }));
+  });
+
+  // 9. P0-2: DIRECT ORDER DELETION FORBIDDEN
+  it('9. Strictly forbids direct deletion of orders from client Firestore SDK', async () => {
+    const managerADb = testEnv.authenticatedContext('manager_a').firestore();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'orders', 'ord_test_001'), {
+        id: 'ord_test_001',
+        branchId: 'BR-001',
+        totalAmount: 100,
+        status: 'completed'
+      });
+    });
+
+    // Deletion must fail
+    await assertFails(deleteDoc(doc(managerADb, 'orders', 'ord_test_001')));
+  });
+
+  // 10. P1-1: EMPLOYEE SENSITIVE FIELDS PROTECTED
+  it('10. Blocks non-HQ/non-Admin manager from modifying employee salary or role directly', async () => {
+    const managerADb = testEnv.authenticatedContext('manager_a').firestore();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'employees', 'emp_001'), {
+        id: 'emp_001',
+        name: 'Worker 1',
+        salary: 500,
+        role: 'Waiter',
+        branchId: 'BR-001'
+      });
+    });
+
+    // Manager updating salary directly is rejected
+    await assertFails(updateDoc(doc(managerADb, 'employees', 'emp_001'), {
+      salary: 1500
+    }));
+
+    // Manager updating role directly is rejected
+    await assertFails(updateDoc(doc(managerADb, 'employees', 'emp_001'), {
+      role: 'Manager'
+    }));
+  });
+
+  // 11. P1-2: PAYROLL DIRECT CLIENT WRITES BLOCKED
+  it('11. Strictly blocks direct client writes to payroll collection', async () => {
+    const managerADb = testEnv.authenticatedContext('manager_a').firestore();
+    await assertFails(setDoc(doc(managerADb, 'payroll', 'pay_001'), {
+      id: 'pay_001',
+      branchId: 'BR-001',
+      netSalary: 2000,
+      status: 'paid'
+    }));
+  });
+
+  // 12. P1-3: POS STAFF DIRECT STOCK MUTATION BLOCKED
+  it('12. Blocks POS staff from directly mutating product or ingredient stock in Firestore', async () => {
+    const cashierADb = testEnv.authenticatedContext('cashier_a').firestore();
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'products', 'prod_juice'), {
+        id: 'prod_juice',
+        name: 'Mango Juice',
+        branchId: 'BR-001',
+        stock: 50
+      });
+    });
+
+    // Direct product stock update by Cashier is rejected
+    await assertFails(updateDoc(doc(cashierADb, 'products', 'prod_juice'), {
+      stock: 100
+    }));
+  });
 });

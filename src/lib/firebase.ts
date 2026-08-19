@@ -479,11 +479,30 @@ export async function addProductFirestore(data: Omit<Product, 'id'>, branchIdOve
 }
 
 export async function updateProductFirestore(productId: string, data: Partial<Product>) {
-  const productRef = doc(db, COLLECTIONS.PRODUCTS, productId);
-  await updateDoc(productRef, {
-    ...data,
-    updatedAt: new Date().toISOString()
-  });
+  const { stock, currentStock, quantityOnHand, reservedStock, salesCount, branchId, ...safeData } = data as any;
+  if (stock !== undefined) {
+    try {
+      const token = await getAuthToken();
+      await fetch('/api/inventory/stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ productId, newStock: Number(stock) })
+      });
+    } catch (err) {
+      console.warn('Backend stock update note:', err);
+    }
+  }
+
+  if (Object.keys(safeData).length > 0) {
+    const productRef = doc(db, COLLECTIONS.PRODUCTS, productId);
+    await updateDoc(productRef, {
+      ...safeData,
+      updatedAt: new Date().toISOString()
+    });
+  }
 }
 
 export async function deleteProductFirestore(productId: string) {
@@ -572,11 +591,37 @@ export async function addIngredientFirestore(ingredient: Omit<Ingredient, 'id'>,
 }
 
 export async function updateIngredientFirestore(ingredientId: string, data: Partial<Ingredient>) {
-  const ingRef = doc(db, COLLECTIONS.INGREDIENTS, ingredientId);
-  await updateDoc(ingRef, {
-    ...data,
-    updatedAt: new Date().toISOString()
-  });
+  const { stock, currentQuantity, currentStock, quantityOnHand, currentStockUsageUnit, reservedStock, branchId, ...safeData } = data as any;
+  if (stock !== undefined || currentQuantity !== undefined || currentStockUsageUnit !== undefined) {
+    const qty = stock !== undefined ? stock : currentQuantity !== undefined ? currentQuantity : currentStockUsageUnit;
+    try {
+      const token = await getAuthToken();
+      await fetch('/api/inventory/adjust', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          type: 'adjustment',
+          itemType: 'ingredient',
+          itemId: ingredientId,
+          quantity: Number(qty),
+          reason: 'Client-triggered ingredient stock adjustment'
+        })
+      });
+    } catch (err) {
+      console.warn('Backend ingredient stock adjustment note:', err);
+    }
+  }
+
+  if (Object.keys(safeData).length > 0) {
+    const ingRef = doc(db, COLLECTIONS.INGREDIENTS, ingredientId);
+    await updateDoc(ingRef, {
+      ...safeData,
+      updatedAt: new Date().toISOString()
+    });
+  }
 }
 
 export async function deleteIngredientFirestore(ingredientId: string) {

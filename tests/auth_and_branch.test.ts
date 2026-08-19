@@ -42,7 +42,7 @@ describe('1. AUTHENTICATION & ID TOKEN TESTS', () => {
 
 describe('2. BRANCH SECURITY & AUTHORIZATION TESTS', () => {
   it('allows HQ Admin/Owner to access any requested branch', () => {
-    const adminUser = { role: 'Admin', branchId: 'all' };
+    const adminUser = { role: 'Admin', branchId: 'branch_hq_01', isHQ: true };
     const authResult = checkBranchAuthorization(adminUser, 'branch_b');
     expect(authResult.authorized).toBe(true);
     expect(authResult.targetBranchId).toBe('branch_b');
@@ -208,8 +208,8 @@ describe('5. FINAL AUTHORIZATION & BRANCH FALLBACK CLEANUP SCENARIOS', () => {
     expect(authDelivery.targetBranchId).toBe('branch_b');
   });
 
-  it('6. Explicit HQ (branchId="all") + Delivery Branch B + Assign Driver -> ALLOW', () => {
-    const hqAdmin = { role: 'Admin', branchId: 'all' };
+  it('6. Explicit HQ (isHQ=true) + Delivery Branch B + Assign Driver -> ALLOW', () => {
+    const hqAdmin = { role: 'Admin', branchId: 'branch_hq_01', isHQ: true };
     const authDelivery = checkBranchAuthorization(hqAdmin, 'branch_b');
     expect(authDelivery.authorized).toBe(true);
     expect(authDelivery.targetBranchId).toBe('branch_b');
@@ -471,6 +471,163 @@ describe('12. POS CHECKOUT BRANCH AUTHORIZATION & CROSS-BRANCH PREVENTION (RC FI
     expect(resolveUserBranch({ branchId: '   ' }, false)).toBeNull();
     expect(resolveUserBranch({ branchId: 'branch_hq_01' }, true)).toBe('branch_hq_01');
     expect(resolveUserBranch(null, true)).toBeUndefined();
+  });
+
+  describe('P0-1 & P0-3 & P1-6: FINAL REMEDIATION SPECIFIC TESTS', () => {
+    it('P0-1: validateUserPrivilegeUpdate strictly blocks admin or staff from setting isHQ=true', () => {
+      const adminUpdater = { role: 'Admin', isAdmin: true, branchId: 'branch_a' };
+      const targetStaff = { role: 'Cashier', branchId: 'branch_a' };
+
+      const escalationAttempt = validateUserPrivilegeUpdate(adminUpdater, targetStaff, { isHQ: true });
+      expect(escalationAttempt.allowed).toBe(false);
+      expect(escalationAttempt.error).toMatch(/Admin cannot grant isHQ privilege/i);
+
+      const staffUpdater = { role: 'Cashier', branchId: 'branch_a' };
+      const staffAttempt = validateUserPrivilegeUpdate(staffUpdater, targetStaff, { isHQ: true });
+      expect(staffAttempt.allowed).toBe(false);
+      expect(staffAttempt.error).toMatch(/Non-admin users cannot modify security-sensitive fields/i);
+    });
+
+    it('P1-6: Branch Canonicalization uses strict alias mapping without fuzzy guessing', async () => {
+      const { normalizeCanonicalBranchId } = await import('../server/auth.js');
+      expect(normalizeCanonicalBranchId('HQ')).toBe('branch_hq_01');
+      expect(normalizeCanonicalBranchId('hq-mog-01')).toBe('branch_hq_01');
+      expect(normalizeCanonicalBranchId('Mogadishu Main')).toBe('branch_hq_01');
+      expect(normalizeCanonicalBranchId('BR-HAR-02')).toBe('branch_hargeisa_01');
+      expect(normalizeCanonicalBranchId('br-kis-03')).toBe('branch_kismayo_01');
+      
+      // Unknown names MUST NOT be fuzzy converted to HQ
+      expect(normalizeCanonicalBranchId('Mogadishu West Branch')).toBe('Mogadishu West Branch');
+      expect(normalizeCanonicalBranchId('Flagship Sea View')).toBe('Flagship Sea View');
+    });
+
+    it('P0-3: POS Checkout rejects cash order if client sends paidAmount=0', async () => {
+      const res = await request(app)
+        .post('/api/pos/complete')
+        .set('Authorization', 'Bearer test_token_cashier_branch_a')
+        .send({
+          orderData: {
+            branchId: 'branch_a',
+            paymentMethod: 'cash',
+            paymentStatus: 'unpaid',
+            paidAmount: 0,
+            items: [{ productId: 'prod_branch_a_1', quantity: 1, price: 15 }]
+          }
+        });
+
+      expect([400, 500]).toContain(res.status);
+      expect(res.body.error).toMatch(/Underpayment rejected/i);
+    });
+
+    it('P0-3: POS Checkout forces paymentStatus=paid for cash with full tender even if client sends paymentStatus=unpaid or isCredit=true', async () => {
+      const res = await request(app)
+        .post('/api/pos/complete')
+        .set('Authorization', 'Bearer test_token_cashier_branch_a')
+        .send({
+          orderData: {
+            branchId: 'branch_a',
+            paymentMethod: 'cash',
+            paymentStatus: 'unpaid',
+            isCredit: true,
+            paidAmount: 15.75,
+            items: [{ productId: 'prod_branch_a_1', quantity: 1, price: 15 }],
+            subtotal: 15,
+            tax: 0.75,
+            totalAmount: 15.75
+          }
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.order.paymentStatus).toBe('paid');
+      expect(res.body.order.paidAmount).toBe(15.75);
+    });
+
+    it('P0-3: POS Checkout for paymentMethod=credit requires customer information', async () => {
+      const res = await request(app)
+        .post('/api/pos/complete')
+        .set('Authorization', 'Bearer test_token_cashier_branch_a')
+        .send({
+          orderData: {
+            branchId: 'branch_a',
+            paymentMethod: 'credit',
+            paymentStatus: 'paid', // Fake client claim
+            items: [{ productId: 'prod_branch_a_1', quantity: 1, price: 15 }]
+          }
+        });
+
+      expect([400, 500]).toContain(res.status);
+      expect(res.body.error).toMatch(/Credit order rejected: A valid customer/i);
+    });
+
+    it('P0-3: POS Checkout for valid credit order sets paymentStatus=unpaid and paidAmount=0', async () => {
+      const res = await request(app)
+        .post('/api/pos/complete')
+        .set('Authorization', 'Bearer test_token_cashier_branch_a')
+        .send({
+          orderData: {
+            branchId: 'branch_a',
+            paymentMethod: 'credit',
+            customerName: 'Loyal VIP Client',
+            customerId: 'cust_vip_001',
+            paidAmount: 15.75, // Fake paidAmount ignored
+            items: [{ productId: 'prod_branch_a_1', quantity: 1, price: 15 }]
+          }
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.order.paymentStatus).toBe('unpaid');
+      expect(res.body.order.paidAmount).toBe(0);
+    });
+
+    it('P0-1: isUserBranch("all") security - Non-HQ user requesting "all" branch scope is STRICTLY REJECTED', () => {
+      const cashierUser = { role: 'Cashier', branchId: 'branch_a' };
+      const managerUser = { role: 'Manager', branchId: 'branch_a' };
+      const spoofedUser = { role: 'Cashier', branchId: 'all' }; // Spoofed claim
+
+      expect(checkBranchAuthorization(cashierUser, 'all').authorized).toBe(false);
+      expect(checkBranchAuthorization(managerUser, 'all').authorized).toBe(false);
+      expect(checkBranchAuthorization(spoofedUser, 'branch_b').authorized).toBe(false);
+    });
+
+    it('P0-1: isUserBranch("all") security - Legitimate HQ Owner or Admin with isHQ is authorized for specific branches', () => {
+      const ownerUser = { role: 'Owner', branchId: 'branch_hq_01', isOwner: true };
+      const hqAdmin = { role: 'Admin', branchId: 'branch_hq_01', isHQ: true };
+
+      expect(checkBranchAuthorization(ownerUser, 'branch_b').authorized).toBe(true);
+      expect(checkBranchAuthorization(ownerUser, 'branch_b').targetBranchId).toBe('branch_b');
+      expect(checkBranchAuthorization(hqAdmin, 'branch_a').authorized).toBe(true);
+      expect(checkBranchAuthorization(hqAdmin, 'branch_a').targetBranchId).toBe('branch_a');
+    });
+
+    it('P0-2 & P1-3: Direct paymentStatus, items, or totals client manipulation on order update is STRICTLY REJECTED', async () => {
+      const res = await request(app)
+        .post('/api/orders/ord_test_immutable_01/update')
+        .set('Authorization', 'Bearer test_token_cashier_branch_a')
+        .send({
+          paymentStatus: 'paid', // Forbidden direct modification
+          items: [{ productId: 'p999', quantity: 100, price: 0 }], // Forbidden direct item mutation
+          totalAmount: 0 // Forbidden direct total mutation
+        });
+
+      expect([400, 403, 500]).toContain(res.status);
+      expect(res.body.error).toBeDefined();
+    });
+
+    it('P1-4: Direct inventory stock manipulation requires authenticated management role', async () => {
+      const unauthRes = await request(app)
+        .post('/api/inventory/stock')
+        .send({ productId: 'prod_1', newStock: 50 });
+
+      expect(unauthRes.status).toBe(401);
+
+      const cashierRes = await request(app)
+        .post('/api/inventory/stock')
+        .set('Authorization', 'Bearer test_token_cashier_branch_a')
+        .send({ productId: 'prod_branch_a_1', newStock: 100 });
+
+      // Cashier is not allowed to directly mutate stock
+      expect([403, 400, 500]).toContain(cashierRes.status);
+    });
   });
 });
 

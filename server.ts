@@ -66,6 +66,75 @@ dotenv.config();
 export const app = express();
 const PORT = 3000;
 
+// P3-01: Production Security Headers & Strict CORS Allowlist Middleware
+function isOriginAllowed(origin?: string): boolean {
+  if (!origin) return true; // Same-origin or non-browser / server-to-server requests
+  try {
+    const parsed = new URL(origin);
+    const host = parsed.hostname.toLowerCase();
+    // Allow local development and test environments
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') {
+      return true;
+    }
+    // Allow Google Cloud Run, Firebase Hosting, and Google AI Studio domains
+    if (
+      host.endsWith('.run.app') ||
+      host.endsWith('.web.app') ||
+      host.endsWith('.firebaseapp.com') ||
+      host.endsWith('.aistudio.google.com') ||
+      host.endsWith('.google.com')
+    ) {
+      return true;
+    }
+    // Allow explicitly configured application domains via environment variables
+    const envOrigins = [
+      process.env.FRONTEND_URL,
+      process.env.APP_URL,
+      process.env.VITE_APP_URL,
+      process.env.ALLOWED_ORIGINS
+    ].filter(Boolean) as string[];
+
+    for (const envOrigin of envOrigins) {
+      for (const single of envOrigin.split(',')) {
+        const trimmed = single.trim();
+        try {
+          if (new URL(trimmed).origin === origin) return true;
+        } catch {
+          if (trimmed === origin) return true;
+        }
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  const origin = req.headers.origin;
+  if (origin && isOriginAllowed(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Idempotency-Key, X-Idempotency-Key');
+
+  if (req.method === 'OPTIONS') {
+    if (origin && !isOriginAllowed(origin)) {
+      return res.status(403).json({ error: 'CORS policy violation: Origin not allowed.' });
+    }
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 
 // Health check endpoint

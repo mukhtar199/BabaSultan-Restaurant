@@ -284,22 +284,33 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
     expect(orderRes.status).toBe(200);
     const orderId = orderRes.body.order.id;
 
+    // 1. Valid whitelisted metadata update succeeds with 200
     const updateRes = await request(app)
       .post(`/api/orders/${orderId}/update`)
       .set('Authorization', CASHIER_TOKEN)
       .send({
         tableNumber: 'Table 5',
-        notes: 'Extra dressing',
-        // Attempt financial field tampering
-        totalAmount: 0.01,
-        subtotal: 0.01
+        notes: 'Extra dressing'
       });
 
     expect(updateRes.status).toBe(200);
     expect(updateRes.body.status).toBe('success');
     expect(updateRes.body.orderId).toBe(orderId);
 
-    // Verify totalAmount was NOT overwritten by tampering attempt
+    // 2. Direct financial field tampering attempt is strictly REJECTED with 403
+    const tamperRes = await request(app)
+      .post(`/api/orders/${orderId}/update`)
+      .set('Authorization', CASHIER_TOKEN)
+      .send({
+        totalAmount: 0.01,
+        subtotal: 0.01,
+        paymentStatus: 'paid'
+      });
+
+    expect(tamperRes.status).toBe(403);
+    expect(tamperRes.body.error).toMatch(/Direct modification of financial, payment, or order items/i);
+
+    // Verify totalAmount remained unchanged in database
     const updatedOrderSnap = await db.collection('orders').doc(orderId).get();
     expect(updatedOrderSnap.data().totalAmount).toBe(10.5);
     expect(updatedOrderSnap.data().tableNumber).toBe('Table 5');
@@ -3714,6 +3725,153 @@ describe('TRUSTED BACKEND API ENDPOINTS INTEGRATION TESTS', () => {
       if (res.status === 400) {
         expect(res.body.error).not.toMatch(/Idempotency-Key is required/i);
       }
+    });
+
+    // P2-01: Global Tax Authorization
+    it('P2-01: Rejects tax creation by branch manager/cashier and allows Owner/HQ Admin', async () => {
+      // 1. Branch Cashier fails with 403
+      const cashierRes = await request(app)
+        .post('/api/accounting/taxes')
+        .set('Authorization', CASHIER_TOKEN)
+        .send({ name: 'VAT 15%', rate: 0.15, type: 'percentage' });
+      expect(cashierRes.status).toBe(403);
+
+      // 2. Branch Manager fails with 403 (restricted to Owner / HQ Admin)
+      const managerRes = await request(app)
+        .post('/api/accounting/taxes')
+        .set('Authorization', 'Bearer test_token_manager_branch_a')
+        .send({ name: 'VAT 15%', rate: 0.15, type: 'percentage' });
+      expect(managerRes.status).toBe(403);
+
+      // 3. Owner succeeds
+      const ownerRes = await request(app)
+        .post('/api/accounting/taxes')
+        .set('Authorization', OWNER_TOKEN)
+        .send({ name: 'VAT 15%', rate: 0.15, type: 'percentage' });
+      expect(ownerRes.status).toBe(200);
+      expect(ownerRes.body.name).toBe('VAT 15%');
+    });
+
+    // P3-01: Security Headers & CORS
+    it('P3-01: Returns security headers and enforces CORS allowlist', async () => {
+      const res = await request(app).get('/api/health');
+      expect(res.status).toBe(200);
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
+      expect(res.headers['x-xss-protection']).toBe('1; mode=block');
+      expect(res.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+
+      // Test trusted origin
+      const trustedOriginRes = await request(app)
+        .options('/api/health')
+        .set('Origin', 'https://babasultan-restaurant-erp.web.app');
+      expect(trustedOriginRes.status).toBe(204);
+      expect(trustedOriginRes.headers['access-control-allow-origin']).toBe('https://babasultan-restaurant-erp.web.app');
+
+      // Test unauthorized arbitrary origin on OPTIONS preflight
+      const badOriginRes = await request(app)
+        .options('/api/health')
+        .set('Origin', 'https://malicious-site.attacker.com');
+      expect(badOriginRes.status).toBe(403);
+    });
+
+    // P1-04: Global Chart of Accounts Authorization
+    it('P1-04: Enforces Owner/HQ Admin for Global Chart of Accounts while allowing branch managers only on their branch', async () => {
+      // 1. Branch Manager creating global account (no branchId or 'all') fails
+      const mgrGlobalRes = await request(app)
+        .post('/api/accounting/accounts')
+        .set('Authorization', 'Bearer test_token_manager_branch_a')
+        .send({ code: '9901', name: 'Global Secret Reserve', type: 'Equity' });
+      expect(mgrGlobalRes.status).toBe(403);
+
+      // 2. Branch Manager creating account for different branch fails
+      const mgrCrossRes = await request(app)
+        .post('/api/accounting/accounts')
+        .set('Authorization', 'Bearer test_token_manager_branch_a')
+        .send({ code: '9902', name: 'Branch B Cash', type: 'Asset', branchId: 'branch_b' });
+      expect(mgrCrossRes.status).toBe(403);
+
+      // 3. Branch Manager creating account for own branch succeeds
+      const mgrOwnRes = await request(app)
+        .post('/api/accounting/accounts')
+        .set('Authorization', 'Bearer test_token_manager_branch_a')
+        .send({ code: '9903', name: 'Branch A Petty Cash', type: 'Asset', branchId: 'branch_a' });
+      expect(mgrOwnRes.status).toBe(200);
+
+      // 4. Owner creating global account succeeds
+      const ownerGlobalRes = await request(app)
+        .post('/api/accounting/accounts')
+        .set('Authorization', OWNER_TOKEN)
+        .send({ code: '1001', name: 'Enterprise Master Treasury', type: 'Asset' });
+      expect(ownerGlobalRes.status).toBe(200);
+    });
+
+    // P1-06: Rewards Cross-Branch Authorization
+    it('P1-06: Blocks cross-branch and unauthorized global reward creation/modification', async () => {
+      // 1. Branch Manager A cannot create reward for Branch B
+      const crossCreateRes = await request(app)
+        .post('/api/crm/rewards')
+        .set('Authorization', 'Bearer test_token_manager_branch_a')
+        .send({ rewardName: 'Branch B Free Burger', pointsRequired: 100, branchId: 'branch_b' });
+      expect(crossCreateRes.status).toBe(403);
+
+      // 2. Branch Manager A cannot create global reward
+      const globalCreateRes = await request(app)
+        .post('/api/crm/rewards')
+        .set('Authorization', 'Bearer test_token_manager_branch_a')
+        .send({ rewardName: 'Global Free Shawarma', pointsRequired: 150, branchId: 'all' });
+      expect(globalCreateRes.status).toBe(403);
+
+      // 3. Owner can create global reward
+      const ownerCreateRes = await request(app)
+        .post('/api/crm/rewards')
+        .set('Authorization', OWNER_TOKEN)
+        .send({ rewardName: 'Enterprise VIP Meal', pointsRequired: 500, branchId: 'all' });
+      expect(ownerCreateRes.status).toBe(201);
+      const rewardId = ownerCreateRes.body.id;
+
+      // 4. Branch Manager A cannot update or delete Owner's global reward
+      const crossUpdateRes = await request(app)
+        .put(`/api/crm/rewards/${rewardId}`)
+        .set('Authorization', 'Bearer test_token_manager_branch_a')
+        .send({ rewardName: 'Hacked VIP Meal' });
+      expect(crossUpdateRes.status).toBe(403);
+
+      const crossDeleteRes = await request(app)
+        .delete(`/api/crm/rewards/${rewardId}`)
+        .set('Authorization', 'Bearer test_token_manager_branch_a');
+      expect(crossDeleteRes.status).toBe(403);
+    });
+
+    // P1-07: Coupons Cross-Branch Authorization
+    it('P1-07: Blocks cross-branch and unauthorized global coupon creation/modification', async () => {
+      // 1. Branch Manager A cannot create coupon for Branch B
+      const crossCouponRes = await request(app)
+        .post('/api/crm/coupons')
+        .set('Authorization', 'Bearer test_token_manager_branch_a')
+        .send({ code: 'DISC_B_50', discountValue: 50, branchId: 'branch_b' });
+      expect(crossCouponRes.status).toBe(403);
+
+      // 2. Branch Manager A cannot create global coupon
+      const globalCouponRes = await request(app)
+        .post('/api/crm/coupons')
+        .set('Authorization', 'Bearer test_token_manager_branch_a')
+        .send({ code: 'GLOBAL_FREE', discountValue: 100, branchId: 'all' });
+      expect(globalCouponRes.status).toBe(403);
+
+      // 3. Owner can create global coupon
+      const ownerCouponRes = await request(app)
+        .post('/api/crm/coupons')
+        .set('Authorization', OWNER_TOKEN)
+        .send({ code: 'GLOBAL_VIP_20', discountValue: 20, branchId: 'all' });
+      expect(ownerCouponRes.status).toBe(201);
+      const couponId = ownerCouponRes.body.id;
+
+      // 4. Branch Manager A cannot delete global coupon
+      const crossDeleteCouponRes = await request(app)
+        .delete(`/api/crm/coupons/${couponId}`)
+        .set('Authorization', 'Bearer test_token_manager_branch_a');
+      expect(crossDeleteCouponRes.status).toBe(403);
     });
   });
 });

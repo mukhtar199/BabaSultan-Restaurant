@@ -1,29 +1,33 @@
+const KNOWN_BRANCH_ALIASES: Record<string, string> = {
+  'all': 'all',
+  'main_branch_01': 'main_branch_01',
+  'branch_hq_01': 'branch_hq_01',
+  'branch_hargeisa_01': 'branch_hargeisa_01',
+  'branch_kismayo_01': 'branch_kismayo_01',
+  'hq': 'branch_hq_01',
+  'hq-mog-01': 'branch_hq_01',
+  'br-001': 'branch_hq_01',
+  'mogadishu main': 'branch_hq_01',
+  'headquarters': 'branch_hq_01',
+  'main branch': 'branch_hq_01',
+  'main flagship branch': 'branch_hq_01',
+  'br-har-02': 'branch_hargeisa_01',
+  'hargeisa branch': 'branch_hargeisa_01',
+  'hargeisa flagship branch': 'branch_hargeisa_01',
+  'br-kis-03': 'branch_kismayo_01',
+  'kismayo branch': 'branch_kismayo_01',
+  'kismayo coastal express': 'branch_kismayo_01',
+  'branch_a': 'branch_a',
+  'branch_b': 'branch_b'
+};
+
 export function getCanonicalBranchId(rawBranch?: string | null): string {
   if (!rawBranch || typeof rawBranch !== 'string') return '';
   const trimmed = rawBranch.trim();
   if (!trimmed) return '';
-  if (trimmed === 'all') return 'all';
   const lower = trimmed.toLowerCase();
-  if (lower === 'main_branch_01') return 'main_branch_01';
-  if (lower === 'branch_hq_01') return 'branch_hq_01';
-  if (lower === 'branch_hargeisa_01') return 'branch_hargeisa_01';
-  if (lower === 'branch_kismayo_01') return 'branch_kismayo_01';
-
-  if (lower.includes('hargeisa') || lower === 'br-har-02') {
-    return 'branch_hargeisa_01';
-  }
-  if (lower.includes('kismayo') || lower === 'br-kis-03') {
-    return 'branch_kismayo_01';
-  }
-  if (
-    lower.includes('main') ||
-    lower.includes('flagship') ||
-    lower.includes('headquarters') ||
-    lower.includes('mogadishu') ||
-    lower === 'hq-mog-01' ||
-    lower === 'br-001'
-  ) {
-    return 'branch_hq_01';
+  if (KNOWN_BRANCH_ALIASES[lower]) {
+    return KNOWN_BRANCH_ALIASES[lower];
   }
   return trimmed;
 }

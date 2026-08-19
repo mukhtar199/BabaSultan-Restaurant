@@ -15,6 +15,7 @@ import {
   checkRoleAuthorization,
   normalizeCanonicalBranchId,
   areBranchesMatching,
+  isHQRoleOrClaim,
   AuthenticatedUser
 } from './auth.js';
 import {
@@ -1256,36 +1257,13 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
           }
         }
 
-        if (branchDocs.length > 0) {
-          const primaryTax = branchDocs.find((t: any) => t.isPrimary === true || t.isDefault === true || t.taxType === 'vat' || t.taxType === 'sales_tax') || branchDocs[0];
+        const primaryTax = branchDocs.find((t: any) => t.isPrimary === true || t.isDefault === true || t.taxType === 'vat' || t.taxType === 'sales_tax');
+        if (primaryTax && typeof primaryTax.rate === 'number') {
           const r = Number(primaryTax.rate || 0);
           configuredTaxRate = r > 1 ? r / 100 : r;
-        } else {
-          const globalTaxesQuery = await transaction.get(
-            db.collection('taxes').where('isActive', '==', true)
-          );
-          let globalDocs = !globalTaxesQuery.empty ? globalTaxesQuery.docs.map(d => d.data()) : [];
-          if (globalDocs.length === 0) {
-            const globalTaxesStatusQuery = await transaction.get(
-              db.collection('taxes').where('status', '==', 'Active')
-            );
-            if (!globalTaxesStatusQuery.empty) {
-              globalDocs = globalTaxesStatusQuery.docs.map(d => d.data());
-            }
-          }
-          const filteredGlobal = globalDocs.filter((t: any) => 
-            (t.isActive === true || t.status === 'Active' || t.status === 'active') && 
-            (!t.branchId || t.branchId === 'all') && 
-            (t.isDefault === true || t.isPrimary === true)
-          );
-          if (filteredGlobal.length > 0) {
-            const defaultTax = filteredGlobal[0];
-            const r = Number(defaultTax.rate || 0);
-            configuredTaxRate = r > 1 ? r / 100 : r;
-          } else if (!isTaxExplicitlyEnabled && globalDocs.length === 0 && branchDocs.length === 0) {
-            // No tax policy in system and tax not explicitly required on branch -> tax is optional/0
-            configuredTaxRate = 0;
-          }
+        } else if (!isTaxExplicitlyEnabled) {
+          // No tax enabled on branch -> tax is 0
+          configuredTaxRate = 0;
         }
       }
 
@@ -1367,9 +1345,6 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
             driverEarningsAmount = Math.max(0, Number(bData.driverEarningsAmount || 0));
           }
         }
-        if (driverEarningsAmount === 0 && orderData.driverEarningsAmount && orderData.driverEarningsEnabled !== false) {
-          driverEarningsAmount = Math.max(0, Number(orderData.driverEarningsAmount || 0));
-        }
       } else {
         // Pickup or Dine-in: strictly 0 delivery fee
         deliveryFee = 0;
@@ -1393,16 +1368,21 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
         throw new Error(`Invalid payment method "${rawPayMethod}". Allowed methods: ${ALLOWED_PAYMENT_METHODS.join(', ')}.`);
       }
 
-      const rawPayStatus = String(orderData.paymentStatus || '').toLowerCase();
-      const isCreditOrUnpaid = rawPayMethod === 'credit' || rawPayMethod === 'unpaid' || orderData.isCredit === true || rawPayStatus === 'unpaid';
-
       let isPaidSale = false;
       let finalPayMethod = rawPayMethod;
       let paidTenderAmount = 0;
 
-      if (isCreditOrUnpaid) {
+      if (rawPayMethod === 'credit') {
+        if (!orderData.customerId && !orderData.customerName) {
+          throw new Error('Credit order rejected: A valid customer name or ID is required for credit sales.');
+        }
         isPaidSale = false;
-        finalPayMethod = rawPayMethod === 'unpaid' ? 'unpaid' : 'credit';
+        finalPayMethod = 'credit';
+        paidTenderAmount = 0;
+      } else if (rawPayMethod === 'unpaid') {
+        isPaidSale = false;
+        finalPayMethod = 'unpaid';
+        paidTenderAmount = 0;
       } else {
         const providedPaid = orderData.paidAmount ?? orderData.paymentAmount ?? orderData.amountTendered;
         if (providedPaid === undefined || providedPaid === null) {
@@ -3336,7 +3316,7 @@ export async function handleInventoryAdjustment(req: express.Request, res: expre
   }
 }
 
-// 9. Direct Product Stock Update
+// 9. Direct Product Stock Update (Authoritative Inventory Physical Count Reconciliation)
 export async function handleStockUpdate(req: express.Request, res: express.Response) {
   const user = await authenticateTrustedUser(req, res);
   if (!user) return;
@@ -3346,11 +3326,14 @@ export async function handleStockUpdate(req: express.Request, res: express.Respo
     return res.status(403).json({ error: roleCheck.error });
   }
 
-  const { productId, newStock } = req.body || {};
-  if (!productId || typeof newStock !== 'number' || newStock < 0) {
-    return res.status(400).json({ error: 'Valid productId and non-negative newStock quantity are required.' });
+  const { productId, newStock, countedStock, reason } = req.body || {};
+  const targetStock = typeof countedStock === 'number' ? countedStock : (typeof newStock === 'number' ? newStock : null);
+  
+  if (!productId || targetStock === null || targetStock < 0) {
+    return res.status(400).json({ error: 'Valid productId and non-negative target stock quantity (countedStock or newStock) are required.' });
   }
 
+  const stockAdjustmentReason = reason ? String(reason).trim() : 'Physical stock count reconciliation';
   const db = getAdminDb();
 
   try {
@@ -3366,7 +3349,7 @@ export async function handleStockUpdate(req: express.Request, res: express.Respo
 
       const prodData = prodSnap.data() || {};
       const currentStock = Number(prodData.stock || 0);
-      const diff = newStock - currentStock;
+      const diff = targetStock - currentStock;
 
       const targetBranchId = prodData.branchId || user.branchId;
       if (!targetBranchId) {
@@ -3378,7 +3361,7 @@ export async function handleStockUpdate(req: express.Request, res: express.Respo
       }
 
       // Atomic Update 1: Product Stock
-      transaction.update(productRef, { stock: newStock, updatedAt: timestamp });
+      transaction.update(productRef, { stock: targetStock, updatedAt: timestamp });
 
       // Atomic Update 2: Inventory Movement
       const movementRef = db.collection('inventory_movements').doc();
@@ -3389,8 +3372,10 @@ export async function handleStockUpdate(req: express.Request, res: express.Respo
         itemId: productId,
         itemName: prodData.name || 'Product',
         quantity: Math.abs(diff),
+        previousQuantity: currentStock,
+        newQuantity: targetStock,
         branchId: targetBranchId,
-        reason: `Direct stock adjustment by ${user.name}`,
+        reason: stockAdjustmentReason,
         createdBy: user.name,
         createdAt: timestamp
       }));
@@ -3406,12 +3391,15 @@ export async function handleStockUpdate(req: express.Request, res: express.Respo
         userName: user.name,
         userRole: user.role,
         branchId: targetBranchId,
-        details: `Updated stock from ${currentStock} to ${newStock} (diff: ${diff})`,
+        details: `Updated stock from ${currentStock} to ${targetStock} (diff: ${diff >= 0 ? '+' : ''}${diff}) - Reason: ${stockAdjustmentReason}`,
+        beforeStock: currentStock,
+        delta: diff,
+        afterStock: targetStock,
         timestamp
       }));
     });
 
-    return res.json({ status: 'success', newStock });
+    return res.json({ status: 'success', productId, newStock: targetStock });
   } catch (err: any) {
     console.error('Stock Update Error:', err?.message || err);
     return res.status(500).json({ error: err?.message || 'Stock Update Failed' });
@@ -4017,6 +4005,22 @@ export async function handleOrderUpdate(req: express.Request, res: express.Respo
     return res.status(400).json({ error: 'Order ID is required.' });
   }
 
+  // Strictly reject any direct client attempts to manipulate financial, payment, or order items fields
+  const FORBIDDEN_ORDER_UPDATE_FIELDS = [
+    'paymentStatus', 'paidAmount', 'tenderAmount', 'amountTendered', 'change', 'changeAmount',
+    'changeDue', 'totalAmount', 'subtotal', 'tax', 'taxRate', 'discountAmount', 'items', 'cogs',
+    'profit', 'refundAmount', 'refundedAmount', 'payments', 'branchId', 'orderNumber', 'createdAt',
+    'createdBy', 'employeeId', 'employeeName'
+  ];
+
+  const bodyKeys = Object.keys(req.body || {});
+  const detectedForbiddenKeys = bodyKeys.filter(k => FORBIDDEN_ORDER_UPDATE_FIELDS.includes(k));
+  if (detectedForbiddenKeys.length > 0) {
+    return res.status(403).json({
+      error: `Direct modification of financial, payment, or order items fields (${detectedForbiddenKeys.join(', ')}) is strictly prohibited. Use authorized POS, cancellation, or refund operations.`
+    });
+  }
+
   // Whitelist ONLY allowed non-sovereign, non-financial fields
   const {
     status,
@@ -4126,9 +4130,24 @@ export async function handleCreateAccount(req: express.Request, res: express.Res
     return res.status(403).json({ error: roleAuth.error });
   }
 
-  const { code, name, type, category, parentId, description, balance } = req.body || {};
+  const { code, name, type, category, parentId, description, balance, branchId: requestedBranch } = req.body || {};
   if (!code || !name || !type) {
     return res.status(400).json({ error: 'Account code, name, and type are required.' });
+  }
+
+  let targetBranchId: string | undefined = undefined;
+  if (requestedBranch && requestedBranch !== 'all' && requestedBranch !== 'HQ') {
+    const branchCheck = checkBranchAuthorization(user, requestedBranch);
+    if (!branchCheck.authorized) {
+      return res.status(403).json({ error: branchCheck.error });
+    }
+    targetBranchId = branchCheck.targetBranchId;
+  } else {
+    // Global chart of accounts creation requires Owner or HQ Admin
+    if (!isHQRoleOrClaim(user)) {
+      return res.status(403).json({ error: 'Access denied: Global Chart of Accounts creation is restricted to Enterprise Owner and HQ Admin.' });
+    }
+    targetBranchId = undefined;
   }
 
   const db = getAdminDb();
@@ -4140,6 +4159,7 @@ export async function handleCreateAccount(req: express.Request, res: express.Res
       category: category ? String(category).trim() : undefined,
       parentId: parentId ? String(parentId).trim() : undefined,
       description: description ? String(description).trim() : undefined,
+      branchId: targetBranchId,
       balance: Number(balance) || 0,
       createdBy: user.name,
       createdAt: new Date().toISOString()
@@ -4147,7 +4167,8 @@ export async function handleCreateAccount(req: express.Request, res: express.Res
     const docRef = await db.collection('accounts').add(payload);
     return res.json({ id: docRef.id, ...payload });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Create Account Failed' });
+    console.error('Create Account Error:', err);
+    return res.status(500).json({ error: 'Create Account Failed' });
   }
 }
 
@@ -4167,6 +4188,26 @@ export async function handleUpdateAccount(req: express.Request, res: express.Res
 
   const db = getAdminDb();
   try {
+    const accountRef = db.collection('accounts').doc(id);
+    const accountSnap = await accountRef.get();
+    if (!accountSnap.exists) {
+      return res.status(404).json({ error: `Account #${id} not found.` });
+    }
+
+    const existingAcc = accountSnap.data() as any;
+    const existingBranch = existingAcc.branchId;
+
+    if (!existingBranch || existingBranch === '' || existingBranch === 'all' || existingBranch === 'HQ') {
+      if (!isHQRoleOrClaim(user)) {
+        return res.status(403).json({ error: 'Access denied: Global Chart of Accounts modification is restricted to Enterprise Owner and HQ Admin.' });
+      }
+    } else {
+      const branchCheck = checkBranchAuthorization(user, existingBranch);
+      if (!branchCheck.authorized) {
+        return res.status(403).json({ error: branchCheck.error });
+      }
+    }
+
     const updates = cleanUndefined({
       code: req.body.code ? String(req.body.code).trim() : undefined,
       name: req.body.name ? String(req.body.name).trim() : undefined,
@@ -4176,10 +4217,11 @@ export async function handleUpdateAccount(req: express.Request, res: express.Res
       description: req.body.description ? String(req.body.description).trim() : undefined,
       updatedAt: new Date().toISOString()
     });
-    await db.collection('accounts').doc(id).update(updates);
+    await accountRef.update(updates);
     return res.json({ status: 'success', id });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Update Account Failed' });
+    console.error('Update Account Error:', err);
+    return res.status(500).json({ error: 'Update Account Failed' });
   }
 }
 
@@ -4938,9 +4980,9 @@ export async function handleCreateTax(req: express.Request, res: express.Respons
   const user = await authenticateTrustedUser(req, res);
   if (!user) return;
 
-  const roleAuth = checkRoleAuthorization(user, ['Owner', 'owner', 'Admin', 'admin', 'Manager', 'manager', 'Accountant', 'accountant']);
-  if (!roleAuth.authorized) {
-    return res.status(403).json({ error: roleAuth.error });
+  const roleAuth = checkRoleAuthorization(user, ['Owner', 'owner', 'Admin', 'admin']);
+  if (!roleAuth.authorized || !isHQRoleOrClaim(user)) {
+    return res.status(403).json({ error: 'Global Tax administration is restricted to Enterprise Owner and HQ Admin.' });
   }
 
   const db = getAdminDb();
@@ -4957,7 +4999,8 @@ export async function handleCreateTax(req: express.Request, res: express.Respons
 
     return res.json({ id: docRef.id, ...payload });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Create Tax Failed' });
+    console.error('Create Tax Error:', err?.message || err);
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Create Tax Failed' : (err?.message || 'Create Tax Failed') });
   }
 }
 
@@ -4965,9 +5008,9 @@ export async function handleUpdateTax(req: express.Request, res: express.Respons
   const user = await authenticateTrustedUser(req, res);
   if (!user) return;
 
-  const roleAuth = checkRoleAuthorization(user, ['Owner', 'owner', 'Admin', 'admin', 'Manager', 'manager', 'Accountant', 'accountant']);
-  if (!roleAuth.authorized) {
-    return res.status(403).json({ error: roleAuth.error });
+  const roleAuth = checkRoleAuthorization(user, ['Owner', 'owner', 'Admin', 'admin']);
+  if (!roleAuth.authorized || !isHQRoleOrClaim(user)) {
+    return res.status(403).json({ error: 'Global Tax administration is restricted to Enterprise Owner and HQ Admin.' });
   }
 
   const { id } = req.params;
@@ -4983,7 +5026,8 @@ export async function handleUpdateTax(req: express.Request, res: express.Respons
     await db.collection('taxes').doc(id).update(updates);
     return res.json({ status: 'success', id });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Update Tax Failed' });
+    console.error('Update Tax Error:', err?.message || err);
+    return res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Update Tax Failed' : (err?.message || 'Update Tax Failed') });
   }
 }
 
@@ -5462,12 +5506,19 @@ export async function handleUpdateInventoryItem(req: express.Request, res: expre
       return res.status(403).json({ error: branchCheck.error });
     }
 
+    const FORBIDDEN_STOCK_FIELDS = ['currentQuantity', 'stock', 'currentStock', 'quantityOnHand', 'reservedStock', 'availableQuantity', 'inventoryQty', 'stockLevel'];
+    const detectedStockKeys = Object.keys(updateData).filter(k => FORBIDDEN_STOCK_FIELDS.includes(k));
+    if (detectedStockKeys.length > 0) {
+      return res.status(403).json({
+        error: `Direct modification of inventory stock/quantity fields (${detectedStockKeys.join(', ')}) is prohibited. All stock modifications must use authorized inventory adjustments (/api/inventory/adjust) or receiving workflows.`
+      });
+    }
+
     const {
       itemName,
       itemCode,
       category,
       unit,
-      currentQuantity,
       minimumQuantity,
       costPrice,
       sellingPrice,
@@ -5488,7 +5539,6 @@ export async function handleUpdateInventoryItem(req: express.Request, res: expre
     if (itemCode !== undefined) payload.itemCode = String(itemCode).trim();
     if (category !== undefined) payload.category = String(category).trim();
     if (unit !== undefined) payload.unit = String(unit).trim();
-    if (currentQuantity !== undefined) payload.currentQuantity = Number(currentQuantity) || 0;
     if (minimumQuantity !== undefined) payload.minimumQuantity = Number(minimumQuantity) || 0;
     if (costPrice !== undefined) payload.costPrice = Number(costPrice) || 0;
     if (sellingPrice !== undefined) payload.sellingPrice = Number(sellingPrice) || 0;
@@ -8075,7 +8125,7 @@ export async function handleAIExecuteAction(req: express.Request, res: express.R
 
       case 'UPDATE_STOCK': {
         const productId = validatedPayload.productId;
-        const newStock = validatedPayload.newStock;
+        const targetStock = validatedPayload.newStock ?? validatedPayload.countedStock;
 
         if (isFakeOrDummyId(productId)) {
           return wrappedRes.status(400).json({ error: `UPDATE_STOCK rejected: Fake or invalid productId "${productId}".` });
@@ -8095,7 +8145,9 @@ export async function handleAIExecuteAction(req: express.Request, res: express.R
 
         req.body = {
           productId: String(productId).trim(),
-          newStock
+          countedStock: typeof targetStock === 'number' ? targetStock : undefined,
+          newStock: typeof targetStock === 'number' ? targetStock : undefined,
+          reason: validatedPayload.reason || 'AI Physical Stock Count Reconciliation'
         };
         return handleStockUpdate(req, wrappedRes);
       }
@@ -8353,6 +8405,20 @@ export async function handleCreateReward(req: express.Request, res: express.Resp
     return res.status(400).json({ error: 'rewardName and pointsRequired are required.' });
   }
 
+  let targetBranchId = '';
+  if (branchId && branchId !== 'all' && branchId !== 'HQ') {
+    const branchCheck = checkBranchAuthorization(user, branchId);
+    if (!branchCheck.authorized) {
+      return res.status(403).json({ error: branchCheck.error });
+    }
+    targetBranchId = branchCheck.targetBranchId;
+  } else {
+    if (!isHQRoleOrClaim(user)) {
+      return res.status(403).json({ error: 'Access denied: Global reward creation is restricted to Enterprise Owner and HQ Admin.' });
+    }
+    targetBranchId = user.branchId || 'HQ';
+  }
+
   const db = getAdminDb();
   const now = new Date().toISOString();
 
@@ -8369,7 +8435,7 @@ export async function handleCreateReward(req: express.Request, res: express.Resp
       maxRedemptions: maxRedemptions ? Number(maxRedemptions) : null,
       currentRedemptions: 0,
       isActive: isActive !== false,
-      branchId: branchId || user.branchId || 'HQ',
+      branchId: targetBranchId,
       createdAt: now,
       updatedAt: now
     };
@@ -8394,7 +8460,7 @@ export async function handleCreateReward(req: express.Request, res: express.Resp
     return res.status(201).json(newReward);
   } catch (err: any) {
     console.error('Error creating customer reward:', err);
-    return res.status(500).json({ error: err.message || 'Failed to create reward' });
+    return res.status(500).json({ error: 'Failed to create reward' });
   }
 }
 
@@ -8422,6 +8488,20 @@ export async function handleUpdateReward(req: express.Request, res: express.Resp
       return res.status(404).json({ error: `Reward #${id} not found.` });
     }
 
+    const existingReward = rewardSnap.data() as any;
+    const existingBranch = existingReward.branchId;
+
+    if (!existingBranch || existingBranch === '' || existingBranch === 'all' || existingBranch === 'HQ') {
+      if (!isHQRoleOrClaim(user)) {
+        return res.status(403).json({ error: 'Access denied: Global reward modification is restricted to Enterprise Owner and HQ Admin.' });
+      }
+    } else {
+      const branchCheck = checkBranchAuthorization(user, existingBranch);
+      if (!branchCheck.authorized) {
+        return res.status(403).json({ error: branchCheck.error });
+      }
+    }
+
     const updates: Record<string, any> = { updatedAt: now };
     const { rewardName, pointsRequired, discountType, discountValue, description, minTier, maxRedemptions, isActive, branchId } = req.body || {};
 
@@ -8433,14 +8513,23 @@ export async function handleUpdateReward(req: express.Request, res: express.Resp
     if (minTier !== undefined) updates.minTier = minTier;
     if (maxRedemptions !== undefined) updates.maxRedemptions = maxRedemptions ? Number(maxRedemptions) : null;
     if (isActive !== undefined) updates.isActive = Boolean(isActive);
-    if (branchId !== undefined) updates.branchId = branchId;
+    if (branchId !== undefined) {
+      if (branchId && branchId !== 'all' && branchId !== 'HQ') {
+        const bCheck = checkBranchAuthorization(user, branchId);
+        if (!bCheck.authorized) return res.status(403).json({ error: bCheck.error });
+        updates.branchId = bCheck.targetBranchId;
+      } else {
+        if (!isHQRoleOrClaim(user)) return res.status(403).json({ error: 'Global reward reassignment requires HQ Admin or Owner.' });
+        updates.branchId = user.branchId || 'HQ';
+      }
+    }
 
     await rewardRef.update(cleanUndefined(updates));
 
     return res.status(200).json({ status: 'success', id, ...updates });
   } catch (err: any) {
     console.error('Error updating customer reward:', err);
-    return res.status(500).json({ error: err.message || 'Failed to update reward' });
+    return res.status(500).json({ error: 'Failed to update reward' });
   }
 }
 
@@ -8461,11 +8550,30 @@ export async function handleDeleteReward(req: express.Request, res: express.Resp
   const db = getAdminDb();
   try {
     const rewardRef = db.collection('customer_rewards').doc(id);
+    const rewardSnap = await rewardRef.get();
+    if (!rewardSnap.exists) {
+      return res.status(404).json({ error: `Reward #${id} not found.` });
+    }
+
+    const existingReward = rewardSnap.data() as any;
+    const existingBranch = existingReward.branchId;
+
+    if (!existingBranch || existingBranch === '' || existingBranch === 'all' || existingBranch === 'HQ') {
+      if (!isHQRoleOrClaim(user)) {
+        return res.status(403).json({ error: 'Access denied: Global reward deletion is restricted to Enterprise Owner and HQ Admin.' });
+      }
+    } else {
+      const branchCheck = checkBranchAuthorization(user, existingBranch);
+      if (!branchCheck.authorized) {
+        return res.status(403).json({ error: branchCheck.error });
+      }
+    }
+
     await rewardRef.delete();
     return res.status(200).json({ status: 'success', id });
   } catch (err: any) {
     console.error('Error deleting customer reward:', err);
-    return res.status(500).json({ error: err.message || 'Failed to delete reward' });
+    return res.status(500).json({ error: 'Failed to delete reward' });
   }
 }
 
@@ -8482,6 +8590,20 @@ export async function handleCreateCoupon(req: express.Request, res: express.Resp
   const { code, title, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, usageLimit, validFrom, validUntil, expiryDate, isActive, branchId } = req.body || {};
   if (!code || discountValue === undefined) {
     return res.status(400).json({ error: 'code and discountValue are required.' });
+  }
+
+  let targetBranchId = '';
+  if (branchId && branchId !== 'all' && branchId !== 'HQ') {
+    const branchCheck = checkBranchAuthorization(user, branchId);
+    if (!branchCheck.authorized) {
+      return res.status(403).json({ error: branchCheck.error });
+    }
+    targetBranchId = branchCheck.targetBranchId;
+  } else {
+    if (!isHQRoleOrClaim(user)) {
+      return res.status(403).json({ error: 'Access denied: Global coupon creation is restricted to Enterprise Owner and HQ Admin.' });
+    }
+    targetBranchId = 'all';
   }
 
   const db = getAdminDb();
@@ -8505,7 +8627,7 @@ export async function handleCreateCoupon(req: express.Request, res: express.Resp
       validUntil: validUntil || expiryDate || null,
       expiryDate: expiryDate || validUntil || null,
       isActive: isActive !== false,
-      branchId: branchId || user.branchId || 'all',
+      branchId: targetBranchId,
       createdAt: now,
       updatedAt: now
     };
@@ -8530,7 +8652,7 @@ export async function handleCreateCoupon(req: express.Request, res: express.Resp
     return res.status(201).json(newCoupon);
   } catch (err: any) {
     console.error('Error creating customer coupon:', err);
-    return res.status(500).json({ error: err.message || 'Failed to create coupon' });
+    return res.status(500).json({ error: 'Failed to create coupon' });
   }
 }
 
@@ -8558,6 +8680,20 @@ export async function handleUpdateCoupon(req: express.Request, res: express.Resp
       return res.status(404).json({ error: `Coupon #${id} not found.` });
     }
 
+    const existingCoupon = couponSnap.data() as any;
+    const existingBranch = existingCoupon.branchId;
+
+    if (!existingBranch || existingBranch === '' || existingBranch === 'all' || existingBranch === 'HQ') {
+      if (!isHQRoleOrClaim(user)) {
+        return res.status(403).json({ error: 'Access denied: Global coupon modification is restricted to Enterprise Owner and HQ Admin.' });
+      }
+    } else {
+      const branchCheck = checkBranchAuthorization(user, existingBranch);
+      if (!branchCheck.authorized) {
+        return res.status(403).json({ error: branchCheck.error });
+      }
+    }
+
     const updates: Record<string, any> = { updatedAt: now };
     const { code, title, description, discountType, discountValue, minOrderAmount, maxDiscountAmount, usageLimit, validFrom, validUntil, expiryDate, isActive, branchId } = req.body || {};
 
@@ -8573,14 +8709,23 @@ export async function handleUpdateCoupon(req: express.Request, res: express.Resp
     if (validUntil !== undefined) updates.validUntil = validUntil;
     if (expiryDate !== undefined) updates.expiryDate = expiryDate;
     if (isActive !== undefined) updates.isActive = Boolean(isActive);
-    if (branchId !== undefined) updates.branchId = branchId;
+    if (branchId !== undefined) {
+      if (branchId && branchId !== 'all' && branchId !== 'HQ') {
+        const bCheck = checkBranchAuthorization(user, branchId);
+        if (!bCheck.authorized) return res.status(403).json({ error: bCheck.error });
+        updates.branchId = bCheck.targetBranchId;
+      } else {
+        if (!isHQRoleOrClaim(user)) return res.status(403).json({ error: 'Global coupon reassignment requires HQ Admin or Owner.' });
+        updates.branchId = 'all';
+      }
+    }
 
     await couponRef.update(cleanUndefined(updates));
 
     return res.status(200).json({ status: 'success', id, ...updates });
   } catch (err: any) {
     console.error('Error updating customer coupon:', err);
-    return res.status(500).json({ error: err.message || 'Failed to update coupon' });
+    return res.status(500).json({ error: 'Failed to update coupon' });
   }
 }
 
@@ -8601,11 +8746,30 @@ export async function handleDeleteCoupon(req: express.Request, res: express.Resp
   const db = getAdminDb();
   try {
     const couponRef = db.collection('customer_coupons').doc(id);
+    const couponSnap = await couponRef.get();
+    if (!couponSnap.exists) {
+      return res.status(404).json({ error: `Coupon #${id} not found.` });
+    }
+
+    const existingCoupon = couponSnap.data() as any;
+    const existingBranch = existingCoupon.branchId;
+
+    if (!existingBranch || existingBranch === '' || existingBranch === 'all' || existingBranch === 'HQ') {
+      if (!isHQRoleOrClaim(user)) {
+        return res.status(403).json({ error: 'Access denied: Global coupon deletion is restricted to Enterprise Owner and HQ Admin.' });
+      }
+    } else {
+      const branchCheck = checkBranchAuthorization(user, existingBranch);
+      if (!branchCheck.authorized) {
+        return res.status(403).json({ error: branchCheck.error });
+      }
+    }
+
     await couponRef.delete();
     return res.status(200).json({ status: 'success', id });
   } catch (err: any) {
     console.error('Error deleting customer coupon:', err);
-    return res.status(500).json({ error: err.message || 'Failed to delete coupon' });
+    return res.status(500).json({ error: 'Failed to delete coupon' });
   }
 }
 
