@@ -36,7 +36,7 @@ interface NotificationItem {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, onOpenSetupWizard }) => {
-  const { user, userRecord, role, switchRole, language, setLanguage, themeMode, toggleTheme, logout, t } = useAuth();
+  const { user, userRecord, role, language, setLanguage, themeMode, toggleTheme, logout, t } = useAuth();
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -156,32 +156,13 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, onOpenSetupW
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-        {/* Role Display / Demo Switcher */}
-        {(() => {
-          const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true' || import.meta.env.MODE === 'development';
-          return (
-            <div className="relative group">
-              <div className={`flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 rounded-xl px-2 sm:px-2.5 py-1.5 text-xs text-white ${isDemoMode ? 'cursor-pointer hover:border-emerald-500/50' : 'cursor-default'} transition`}>
-                <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span className="font-semibold text-[11px] sm:text-xs truncate max-w-[80px] sm:max-w-none">{t.roles[role as keyof typeof t.roles] || role}</span>
-                {isDemoMode && (
-                  <select
-                    value={role}
-                    onChange={(e) => switchRole(e.target.value as UserRole)}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                    title="Switch Role (Demo Mode Only)"
-                  >
-                    {Object.values(USER_ROLES).map((r) => (
-                      <option key={r} value={r} className="bg-slate-900 text-white">
-                        {t.roles[r as keyof typeof t.roles] || r}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+        {/* Role Display */}
+        <div className="relative">
+          <div className="flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/80 rounded-xl px-2 sm:px-2.5 py-1.5 text-xs text-white cursor-default transition">
+            <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="font-semibold text-[11px] sm:text-xs truncate max-w-[80px] sm:max-w-none">{t.roles[role as keyof typeof t.roles] || role}</span>
+          </div>
+        </div>
 
         {/* Language Selector */}
         <div className="relative group">

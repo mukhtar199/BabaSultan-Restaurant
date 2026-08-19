@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Product, Category, Ingredient, RecipeIngredient, ProductOption } from '../../../types';
 import { useAuth } from '../../context/AuthContext';
 import { validateProductForm, ValidationError } from '../../../lib/validation/productValidation';
-import { SAMPLE_RESTAURANT_FOOD_IMAGES, compressAndOptimizeImage } from '../../../infrastructure/storage/imageService';
+import { compressAndOptimizeImage } from '../../../infrastructure/storage/imageService';
 import {
   X,
   Plus,
@@ -55,25 +55,25 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         nameSo: '',
         description: '',
         shortDescription: '',
-        imageUrl: SAMPLE_RESTAURANT_FOOD_IMAGES[0],
+        imageUrl: '',
         images: [],
         category: categories[0]?.name || 'Main Course',
         categoryId: categories[0]?.id || 'cat_main',
-        price: 10.0,
+        price: 0,
         discountPrice: 0,
-        cost: 3.50,
+        cost: 0,
         tax: 0,
         prepTimeMinutes: 15,
         availabilityStatus: 'enabled',
         isFeatured: false,
-        sku: `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
-        barcode: `${Math.floor(600000000000 + Math.random() * 300000000000)}`,
-        stock: 50,
+        sku: '',
+        barcode: '',
+        stock: 0,
         minStockAlert: 10,
         unit: 'Portion',
         salesCount: 0,
         ingredients: [],
-        calories: 450,
+        calories: 0,
         options: []
       });
     }
@@ -524,33 +524,24 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
               {/* Image Preview Banner */}
               <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl flex items-center gap-4">
-                <img
-                  src={formData.imageUrl || SAMPLE_RESTAURANT_FOOD_IMAGES[0]}
-                  alt="Preview"
-                  className="w-20 h-20 rounded-xl object-cover border border-slate-800 bg-slate-900"
-                />
+                {formData.imageUrl ? (
+                  <img
+                    src={formData.imageUrl}
+                    alt="Preview"
+                    className="w-20 h-20 rounded-xl object-cover border border-slate-800 bg-slate-900"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600">
+                    <ImageIcon className="w-8 h-8" />
+                  </div>
+                )}
                 <div>
-                  <h4 className="text-xs font-bold text-white">Current Primary Image Preview</h4>
-                  <p className="text-[10px] text-slate-400 mt-1">High-resolution food imagery enhances POS display and digital kiosk ordering experience.</p>
-                </div>
-              </div>
-
-              {/* Sample Preset Food Library */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Quick Select Preset Food Library
-                </label>
-                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                  {SAMPLE_RESTAURANT_FOOD_IMAGES.map((img, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, imageUrl: img })}
-                      className="relative rounded-xl overflow-hidden aspect-square border border-slate-800 hover:border-emerald-500 transition group"
-                    >
-                      <img src={img} alt={`Preset ${idx}`} className="w-full h-full object-cover" />
-                    </button>
-                  ))}
+                  <h4 className="text-xs font-bold text-white">Product Image Preview</h4>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {formData.imageUrl
+                      ? 'Custom product image is set and will be displayed in POS and KDS.'
+                      : 'No image uploaded yet. A neutral placeholder icon will be displayed.'}
+                  </p>
                 </div>
               </div>
             </div>

@@ -7,7 +7,6 @@ export const LoginPage: React.FC<{ onLoginSuccess?: () => void; initialError?: s
   const {
     loginWithEmail,
     loginWithGoogle,
-    quickDemoLogin,
     sendPasswordReset,
     language,
     setLanguage,
@@ -19,8 +18,6 @@ export const LoginPage: React.FC<{ onLoginSuccess?: () => void; initialError?: s
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(initialError || null);
-
-  const isDemoAllowed = import.meta.env.VITE_DEMO_MODE === 'true' || import.meta.env.MODE === 'development';
   const [loading, setLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
@@ -54,19 +51,6 @@ export const LoginPage: React.FC<{ onLoginSuccess?: () => void; initialError?: s
       if (onLoginSuccess) onLoginSuccess();
     } catch (err: any) {
       setError(err.message || 'Google sign in failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickRole = async (targetRole: UserRole) => {
-    setError(null);
-    setLoading(true);
-    try {
-      await quickDemoLogin(targetRole);
-      if (onLoginSuccess) onLoginSuccess();
-    } catch (err: any) {
-      setError(err.message || 'Quick login failed');
     } finally {
       setLoading(false);
     }
@@ -275,33 +259,6 @@ export const LoginPage: React.FC<{ onLoginSuccess?: () => void; initialError?: s
             </svg>
             <span>{t.auth.signInWithGoogle}</span>
           </button>
-
-          {/* Quick Preset Login Grid for Development / Demo Mode Testing */}
-          {isDemoAllowed && (
-            <div className="pt-4 border-t border-slate-800/80 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
-                <Sparkles className="w-4 h-4" />
-                <span>{t.auth.quickPresetLogin}</span>
-              </div>
-              <p className="text-[11px] text-slate-400">{t.auth.quickPresetDesc}</p>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {Object.values(USER_ROLES).map((roleKey) => (
-                  <button
-                    key={roleKey}
-                    type="button"
-                    onClick={() => handleQuickRole(roleKey)}
-                    className="bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 p-2 rounded-xl text-left transition group cursor-pointer"
-                  >
-                    <p className="text-[11px] font-bold text-white group-hover:text-emerald-400 truncate">
-                      {t.roles[roleKey as keyof typeof t.roles] || roleKey}
-                    </p>
-                    <p className="text-[9px] text-slate-500 capitalize">Role Preset</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
       </div>

@@ -162,7 +162,7 @@ service cloud.firestore {
     }
 
     match /accounts/{accountId} {
-      allow read: if isManagementOrAccountant();
+      allow read: if isManagementOrAccountant() && (resource.data.get('branchId', '') == '' || resource.data.get('branchId', '') == 'all' || isUserBranch(resource.data.get('branchId', '')));
       allow write: if false; // Server-authoritative only via trusted financial backend
     }
 
@@ -172,8 +172,8 @@ service cloud.firestore {
     }
 
     match /suppliers/{supplierId} {
-      allow read: if isSignedIn();
-      allow write: if isManagementOrAccountant();
+      allow read: if isSignedIn() && (resource.data.get('branchId', '') == '' || resource.data.get('branchId', '') == 'all' || isUserBranch(resource.data.get('branchId', '')));
+      allow write: if isManagementOrAccountant() && (request.resource.data.get('branchId', '') == '' || request.resource.data.get('branchId', '') == 'all' ? isHQOrAdmin() : isUserBranch(request.resource.data.get('branchId', '')));
     }
 
     // Operational Collections
@@ -242,7 +242,7 @@ service cloud.firestore {
 
     match /branch_transfers/{transferId} {
       allow read: if isSignedIn() && (
-        isOwner() ||
+        isOwnerRole() ||
         request.auth.token.get('branchId', '') in ['all', 'HQ', 'hq'] ||
         isUserBranch(resource.data.get('sourceBranchId', '')) ||
         isUserBranch(resource.data.get('destinationBranchId', '')) ||
@@ -476,9 +476,20 @@ service cloud.firestore {
       allow update, delete: if isManagementOrAccountant() && isUserBranch(resource.data.get('branchId', '')) && isUserBranch(request.resource.data.get('branchId', ''));
     }
     match /taxes/{id} {
-      allow read: if isSignedIn() && (resource.data.get('branchId', '') == '' || isUserBranch(resource.data.get('branchId', '')));
-      allow create: if (request.resource.data.get('branchId', '') == '' ? isHQOrAdmin() : (isManagement() && isUserBranch(request.resource.data.get('branchId', ''))));
-      allow update, delete: if (resource.data.get('branchId', '') == '' ? isHQOrAdmin() : (isManagement() && isUserBranch(resource.data.get('branchId', ''))));
+      allow read: if isSignedIn() && (
+        resource.data.get('branchId', '') in ['', 'all'] || 
+        isUserBranch(resource.data.get('branchId', ''))
+      );
+      allow create: if (
+        (request.resource.data.get('branchId', '') in ['', 'all']) 
+          ? isHQOrAdmin() 
+          : (isManagement() && isUserBranch(request.resource.data.get('branchId', '')) && request.resource.data.get('branchId', '').size() > 0)
+      );
+      allow update, delete: if (
+        (resource.data.get('branchId', '') in ['', 'all']) 
+          ? isHQOrAdmin() 
+          : (isManagement() && isUserBranch(resource.data.get('branchId', '')) && (request.resource.data.get('branchId', '') == resource.data.get('branchId', '')))
+      );
     }
     match /financial_reports/{id} {
       allow read: if isManagementOrAccountant() && isUserBranch(resource.data.get('branchId', ''));

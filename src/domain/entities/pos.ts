@@ -45,6 +45,7 @@ export interface ReceiptData {
   items: CartItem[];
   subtotal: number;
   tax: number;
+  taxRate?: number;
   discount: number;
   totalAmount: number;
   paymentMethod: PaymentMethod;

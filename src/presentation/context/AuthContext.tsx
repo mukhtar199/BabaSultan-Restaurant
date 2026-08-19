@@ -40,13 +40,11 @@ interface AuthContextType {
   lastActivityTime: Date | null;
   loginWithEmail: (email: string, pass: string, remember?: boolean) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  quickDemoLogin: (role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   changePassword: (currentPass: string, newPass: string) => Promise<void>;
   sendVerificationEmail: () => Promise<void>;
   updateProfileDetails: (displayName: string, photoURL?: string) => Promise<void>;
-  switchRole: (newRole: UserRole) => void;
   setLanguage: (lang: SupportedLanguage) => void;
   toggleTheme: () => void;
   refreshUserRecord: () => Promise<void>;
@@ -88,72 +86,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const fetchOrCreateUserRecord = async (firebaseUser: User, overrideRole?: UserRole): Promise<UserRecord> => {
-    try {
-      const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
-      const snap = await getDoc(userDocRef);
-      if (snap.exists()) {
-        const data = snap.data() as UserRecord;
-        const resolvedBranchId = data.branchId || (typeof data.branch === 'string' && (data.branch.startsWith('branch_') || data.branch.startsWith('main_branch_')) ? data.branch : (data.role === 'Owner' ? 'all' : ''));
-        const updatedRecord: UserRecord = {
-          ...data,
-          branchId: resolvedBranchId,
-          lastLoginAt: new Date().toISOString(),
-          emailVerified: firebaseUser.emailVerified
-        };
-        await setDoc(userDocRef, updatedRecord, { merge: true });
-        setUserRecord(updatedRecord);
-        if (data.role) setRole(data.role);
-        return updatedRecord;
-      } else {
-        const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
-        const resolvedRole: UserRole = overrideRole || 'Cashier';
-        const isOwner = resolvedRole === 'Owner';
-        const newRecord: UserRecord = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || `${firebaseUser.uid.substring(0, 8)}@restaurant.internal`,
-          displayName: firebaseUser.displayName || 'Enterprise User',
-          role: resolvedRole,
-          branch: isOwner ? 'All Branches (HQ)' : 'Unassigned Branch',
-          branchId: isOwner ? 'all' : '',
-          status: isDemo ? 'active' : 'pending',
-          emailVerified: firebaseUser.emailVerified,
-          photoURL: firebaseUser.photoURL || undefined,
-          createdAt: new Date().toISOString(),
-          lastLoginAt: new Date().toISOString()
-        };
-        await setDoc(userDocRef, newRecord);
-        setUserRecord(newRecord);
-        setRole(newRecord.role);
-        return newRecord;
-      }
-    } catch (err) {
-      console.error('Error syncing user record from Firestore:', err);
-      // Deny by default: Do not grant active status or default privileges upon lookup failure
-      const fallbackRecord: UserRecord = {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email || 'user@restaurant.internal',
-        displayName: firebaseUser.displayName || 'Unverified User',
-        role: 'Cashier',
-        branch: 'Unassigned Branch',
-        branchId: '',
-        status: 'pending',
-        emailVerified: firebaseUser.emailVerified,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
-      };
-      setUserRecord(fallbackRecord);
-      setRole('Cashier');
-      return fallbackRecord;
+  const fetchAndAuthorizeUserRecord = async (firebaseUser: User): Promise<UserRecord> => {
+    const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
+    const snap = await getDoc(userDocRef);
+
+    if (!snap.exists()) {
+      await signOut(auth);
+      setUser(null);
+      setUserRecord(null);
+      const errMsg = language === 'ar'
+        ? `تم رفض الوصول: لا يوجد ملف مستخدم مخصص لهذا الحساب (${firebaseUser.email || firebaseUser.uid}). يرجى مراجعة مسؤول النظام.`
+        : `Access Denied: No provisioned user profile found for account (${firebaseUser.email || firebaseUser.uid}). Contact system administrator.`;
+      logger.warn(`Unauthorized login attempt without Firestore profile: ${firebaseUser.email}`, 'AuthContext');
+      throw new Error(errMsg);
     }
+
+    const data = snap.data() as UserRecord;
+
+    if (!data.role) {
+      await signOut(auth);
+      setUser(null);
+      setUserRecord(null);
+      const errMsg = language === 'ar'
+        ? 'تم رفض الوصول: لم يتم تعيين دور وظيفي لهذا الحساب.'
+        : 'Access Denied: No functional role assigned to this account.';
+      throw new Error(errMsg);
+    }
+
+    if (data.status && data.status !== 'active') {
+      await signOut(auth);
+      setUser(null);
+      setUserRecord(null);
+      const errMsg = language === 'ar'
+        ? `تم رفض الوصول: حالة الحساب (${data.status}). الحساب معلق أو معطل.`
+        : `Access Denied: Account status is ${data.status}. Access is suspended.`;
+      throw new Error(errMsg);
+    }
+
+    const isOwnerOrAdmin = data.role === 'Owner' || data.role === 'Admin';
+    const resolvedBranchId = data.branchId || (typeof data.branch === 'string' && (data.branch.startsWith('branch_') || data.branch.startsWith('main_branch_')) ? data.branch : (isOwnerOrAdmin ? 'all' : ''));
+
+    if (!isOwnerOrAdmin && !resolvedBranchId) {
+      await signOut(auth);
+      setUser(null);
+      setUserRecord(null);
+      const errMsg = language === 'ar'
+        ? 'تم رفض الوصول: لا يوجد فرع مخصص لهذا الحساب. يرجى مراجعة مسؤول النظام.'
+        : 'Access Denied: No operational branch assigned to this account. Contact system administrator.';
+      throw new Error(errMsg);
+    }
+
+    const updatedRecord: UserRecord = {
+      ...data,
+      branchId: resolvedBranchId,
+      lastLoginAt: new Date().toISOString(),
+      emailVerified: firebaseUser.emailVerified
+    };
+
+    await setDoc(userDocRef, {
+      branchId: resolvedBranchId,
+      lastLoginAt: updatedRecord.lastLoginAt,
+      emailVerified: firebaseUser.emailVerified
+    }, { merge: true });
+
+    setUserRecord(updatedRecord);
+    setRole(updatedRecord.role);
+    return updatedRecord;
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        if (firebaseUser.isAnonymous && process.env.NODE_ENV !== 'development') {
-          // In production, anonymous users must not have staff ERP user records
+        if (firebaseUser.isAnonymous) {
           setUserRecord(null);
           setSessionStartTime(null);
           setLoading(false);
@@ -161,8 +166,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setSessionStartTime(new Date());
         setLastActivityTime(new Date());
-        await fetchOrCreateUserRecord(firebaseUser);
-        logger.info(`User session active: ${firebaseUser.email || firebaseUser.uid}`, 'AuthContext');
+        try {
+          await fetchAndAuthorizeUserRecord(firebaseUser);
+          logger.info(`User session active: ${firebaseUser.email || firebaseUser.uid}`, 'AuthContext');
+        } catch (err: any) {
+          logger.error('Authentication verification failed', 'AuthContext', err);
+          setUser(null);
+          setUserRecord(null);
+        }
       } else {
         setUserRecord(null);
         setSessionStartTime(null);
@@ -174,7 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshUserRecord = async () => {
     if (user) {
-      await fetchOrCreateUserRecord(user);
+      await fetchAndAuthorizeUserRecord(user);
     }
   };
 
@@ -187,7 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
       const cred = await signInWithEmailAndPassword(auth, email, pass);
-      const rec = await fetchOrCreateUserRecord(cred.user);
+      const rec = await fetchAndAuthorizeUserRecord(cred.user);
       await logActivityFirestore({
         userId: cred.user.uid,
         userEmail: cred.user.email || email,
@@ -236,7 +247,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const provider = new GoogleAuthProvider();
       const cred = await signInWithPopup(auth, provider);
-      const rec = await fetchOrCreateUserRecord(cred.user);
+      const rec = await fetchAndAuthorizeUserRecord(cred.user);
       await logActivityFirestore({
         userId: cred.user.uid,
         userEmail: cred.user.email || 'google-user@internal',
@@ -268,57 +279,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           : 'Network error during Google login. Please check your connection.';
       }
       throw new Error(userFriendlyMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const isDemoAllowed = () => {
-    return import.meta.env.VITE_DEMO_MODE === 'true' || import.meta.env.MODE === 'development';
-  };
-
-  const quickDemoLogin = async (targetRole: UserRole) => {
-    if (!isDemoAllowed()) {
-      const msg = language === 'ar'
-        ? 'تسجيل الدخول التجريبي معطل في بيئة الإنتاج. يرجى تسجيل الدخول بحساب Firebase مصرح به.'
-        : 'Demo login is strictly disabled in production. Please sign in with a valid Firebase account.';
-      logger.warn('Attempted quickDemoLogin in production mode - DENIED', 'AuthContext');
-      throw new Error(msg);
-    }
-    setLoading(true);
-    try {
-      setRole(targetRole);
-      if (user) {
-        const userDocRef = doc(db, COLLECTIONS.USERS, user.uid);
-        await setDoc(userDocRef, { role: targetRole }, { merge: true });
-        setUserRecord(prev => prev ? { ...prev, role: targetRole } : null);
-        await logActivityFirestore({
-          userId: user.uid,
-          userEmail: user.email || 'demo@restaurant-erp.internal',
-          userName: user.displayName || `${targetRole} User`,
-          userRole: targetRole,
-          action: 'SWITCH_ROLE',
-          details: `Switched demo role to ${targetRole}`
-        });
-      } else {
-        // Set up synthetic demo user record for development testing mode only
-        const safeRole = targetRole || 'Cashier';
-        const isOwner = safeRole === 'Owner';
-        const demoRecord: UserRecord = {
-          uid: `demo_${safeRole.toLowerCase()}`,
-          email: `${safeRole.toLowerCase()}@restaurant-erp.internal`,
-          displayName: `Demo ${safeRole.toUpperCase()}`,
-          role: targetRole,
-          branch: isOwner ? 'All Branches (HQ)' : 'Headquarters - Mogadishu Main',
-          branchId: isOwner ? 'all' : 'branch_hq_01',
-          status: 'active',
-          emailVerified: true,
-          createdAt: new Date().toISOString(),
-          lastLoginAt: new Date().toISOString()
-        };
-        setUserRecord(demoRecord);
-      }
-      logger.info(`Demo preset role applied: ${targetRole}`, 'AuthContext');
     } finally {
       setLoading(false);
     }
@@ -404,18 +364,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const switchRole = (newRole: UserRole) => {
-    if (!isDemoAllowed()) {
-      logger.warn('Role switching is strictly disabled in production mode', 'AuthContext');
-      return;
-    }
-    setRole(newRole);
-    if (userRecord) {
-      setUserRecord({ ...userRecord, role: newRole });
-    }
-    logger.audit(`User role switched to: ${newRole}`, 'AuthContext');
-  };
-
   const setLanguage = (lang: SupportedLanguage) => {
     setLanguageState(lang);
     localStorage.setItem('app_language', lang);
@@ -447,13 +395,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastActivityTime,
         loginWithEmail,
         loginWithGoogle,
-        quickDemoLogin,
         logout,
         sendPasswordReset,
         changePassword,
         sendVerificationEmail,
         updateProfileDetails,
-        switchRole,
         setLanguage,
         toggleTheme,
         refreshUserRecord

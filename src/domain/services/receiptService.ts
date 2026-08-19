@@ -135,7 +135,9 @@ export function downloadPDFInvoice(order: Order | ReceiptData, restaurantName: s
   doc.text('Subtotal:', 115, startY + 7);
   doc.text(`$${subtotal.toFixed(2)}`, 185, startY + 7, { align: 'right' });
 
-  doc.text('Tax (5% VAT):', 115, startY + 14);
+  const taxRatePercent = order.taxRate ? (order.taxRate * 100).toFixed(0) : (subtotal > 0 && tax > 0 ? ((tax / subtotal) * 100).toFixed(0) : null);
+  const taxLabel = taxRatePercent ? `Tax (${taxRatePercent}% VAT):` : 'Tax (VAT):';
+  doc.text(taxLabel, 115, startY + 14);
   doc.text(`$${tax.toFixed(2)}`, 185, startY + 14, { align: 'right' });
 
   if (discount > 0) {

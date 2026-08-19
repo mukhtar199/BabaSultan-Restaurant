@@ -634,7 +634,7 @@ export interface Branch {
   workingHours: string;
   timeZone: string;
   currency: string;
-  taxRate: number;
+  taxRate?: number;
   taxId?: string;
   status: BranchStatus;
   hierarchyType: BranchHierarchyType;
@@ -750,6 +750,8 @@ export interface DeliveryOrder {
     lat: number;
     lng: number;
   };
+  currentLat?: number;
+  currentLng?: number;
   driverId?: string;
   driverName?: string;
   driverPhone?: string;

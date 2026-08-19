@@ -529,7 +529,7 @@ export const AIFinancialAdvisorView: React.FC<AIFinancialAdvisorViewProps> = ({
             <div className="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl text-center">
               <p className="text-[11px] text-slate-400 font-semibold uppercase">Est. Tax Obligations</p>
               <p className="text-lg font-black text-indigo-400 mt-1">${(kpis.estimatedVAT + kpis.estimatedCorporateTax).toFixed(0)}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">15% VAT + 20% Corp</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Recorded VAT + 20% Corp</p>
             </div>
 
           </div>

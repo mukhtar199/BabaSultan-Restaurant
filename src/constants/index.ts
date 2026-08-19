@@ -190,8 +190,5 @@ export const SYSTEM_CONFIG = {
   APP_NAME: 'Commercial Restaurant ERP System',
   VERSION: '1.0.0-PROD',
   CURRENCY: 'USD',
-  CURRENCY_SYMBOL: '$',
-  TAX_RATE: 0.05,
-  DEFAULT_TAX_RATE_PERCENT: 5.0,
-  DEFAULT_BRANCH: 'Main Flagship Branch'
+  CURRENCY_SYMBOL: '$'
 };

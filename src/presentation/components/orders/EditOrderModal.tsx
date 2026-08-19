@@ -186,7 +186,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
               <span>${(totals.subtotal || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-slate-400">
-              <span>Tax (5% VAT):</span>
+              <span>Tax {totals.subtotal > 0 && totals.tax ? `(${((totals.tax / totals.subtotal) * 100).toFixed(0)}% VAT)` : '(VAT)'}:</span>
               <span>${(totals.tax || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm font-extrabold text-emerald-400 pt-1 border-t border-slate-800">

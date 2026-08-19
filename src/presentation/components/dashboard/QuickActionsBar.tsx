@@ -25,7 +25,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
   onNavigateToTab,
   onOpenAIQuery
 }) => {
-  const { role, switchRole, permissions, t, language } = useAuth();
+  const { role, permissions, t, language } = useAuth();
 
   const getRoleLabel = (roleKey: UserRole, fallback: string) => {
     if (t.roles && t.roles[roleKey]) {
@@ -68,9 +68,6 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
                   key={rv.id}
                   onClick={() => {
                     onChangeRoleView(rv.id);
-                    if (permissions.canAccessAdminPanel) {
-                      switchRole(rv.roleKey);
-                    }
                   }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
                     isActive

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db, COLLECTIONS, auth } from '../../lib/firebase';
 import { 
   Order, 
@@ -100,7 +100,7 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
   initialPurchases = [],
   language: initialLang
 }) => {
-  const { language: authLang, setLanguage } = useAuth();
+  const { userRecord, role, language: authLang, setLanguage } = useAuth();
   const activeLang = (initialLang || authLang || 'en') as Language;
   const [currentLang, setCurrentLang] = useState<Language>(activeLang);
 
@@ -173,45 +173,65 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
     ]);
   }, [currentLang]);
 
-  // Firestore Realtime Listeners
+  // Firestore Realtime Listeners with Branch Isolation
   useEffect(() => {
     setIsLoading(true);
+
+    const userRoleStr = (userRecord?.role || role || '').toLowerCase().trim();
+    const isHqUser = userRoleStr === 'owner' || (userRoleStr === 'admin' && (!userRecord?.branchId || userRecord?.branchId === 'all'));
+    const userBranch = userRecord?.branchId || (userRecord as any)?.branch;
+    const isBranchScoped = !isHqUser && Boolean(userBranch) && userBranch !== 'all';
 
     const handleError = (err: any) => {
       console.warn('AI Business Platform listener error:', err?.message || err);
       setIsLoading(false);
     };
 
-    const unsubOrders = onSnapshot(query(collection(db, COLLECTIONS.ORDERS)), (snap) => {
+    const ordersQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.ORDERS), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.ORDERS));
+
+    const unsubOrders = onSnapshot(ordersQuery, (snap) => {
       const list: Order[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Order));
-      if (list.length > 0) setOrders(list);
+      setOrders(list);
     }, handleError);
 
+    // Global unified product catalog
     const unsubProducts = onSnapshot(query(collection(db, COLLECTIONS.PRODUCTS)), (snap) => {
       const list: Product[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Product));
-      if (list.length > 0) setProducts(list);
+      setProducts(list);
     }, handleError);
 
+    // Global ingredient master specs
     const unsubIngredients = onSnapshot(query(collection(db, COLLECTIONS.INGREDIENTS)), (snap) => {
       const list: Ingredient[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Ingredient));
-      if (list.length > 0) setIngredients(list);
+      setIngredients(list);
     }, handleError);
 
-    const unsubExpenses = onSnapshot(query(collection(db, COLLECTIONS.EXPENSES)), (snap) => {
+    const expensesQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.EXPENSES), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.EXPENSES));
+
+    const unsubExpenses = onSnapshot(expensesQuery, (snap) => {
       const list: Expense[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Expense));
-      if (list.length > 0) setExpenses(list);
+      setExpenses(list);
     }, handleError);
 
-    const unsubEmployees = onSnapshot(query(collection(db, COLLECTIONS.EMPLOYEES)), (snap) => {
+    const employeesQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.EMPLOYEES), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.EMPLOYEES));
+
+    const unsubEmployees = onSnapshot(employeesQuery, (snap) => {
       const list: Employee[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Employee));
-      if (list.length > 0) setEmployees(list);
+      setEmployees(list);
     }, handleError);
 
+    // Global customer registry
     const unsubCustomers = onSnapshot(query(collection(db, COLLECTIONS.CUSTOMERS)), (snap) => {
       const list: Customer[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Customer));
@@ -227,7 +247,7 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
       unsubEmployees();
       unsubCustomers();
     };
-  }, []);
+  }, [userRecord?.branchId, userRecord?.role, role]);
 
   // Compute Full Analytics Engine
   const analytics = useMemo(() => {

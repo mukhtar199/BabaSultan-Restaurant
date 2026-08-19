@@ -65,8 +65,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders }) => {
             <tbody className="divide-y divide-slate-800/60">
               {orders.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-500">
-                    No orders registered yet. Click "Seed Demo ERP Data" in navbar to test.
+                  <td colSpan={9} className="py-8 text-center text-slate-500 font-medium">
+                    No orders recorded yet.
                   </td>
                 </tr>
               ) : (

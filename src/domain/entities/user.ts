@@ -18,6 +18,7 @@ export interface UserProfile {
   role: UserRole;
   branchId?: string;
   avatarUrl?: string;
+  status?: 'active' | 'inactive' | 'suspended';
   createdAt: string;
 }
 

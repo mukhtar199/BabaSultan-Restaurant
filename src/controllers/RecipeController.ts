@@ -115,11 +115,6 @@ export class RecipeController {
     return this.recipeRepo.getFoodCostDashboardData();
   }
 
-  // Seeding
-  async seedInitialData(): Promise<void> {
-    return this.recipeRepo.seedInitialRecipesAndIngredients();
-  }
-
   // Calculation Utilities for UI
   calculateRecipeTotals(
     items: RecipeItem[],

@@ -27,11 +27,7 @@ import {
   createDeliveryZone, 
   updateDeliveryZone, 
   deleteDeliveryZone, 
-  calculateDeliveryAnalytics, 
-  seedInitialDeliveryData,
-  DEFAULT_DRIVERS,
-  DEFAULT_DELIVERIES,
-  DEFAULT_DELIVERY_ZONES
+  calculateDeliveryAnalytics
 } from '../../../lib/deliveryService';
 import { exportToExcel, printReportWindow } from '../../../lib/reports';
 import {
@@ -107,27 +103,20 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
   >('active_tracking');
 
   // Realtime Firestore State
-  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
   const [drivers, setDrivers] = useState<DeliveryDriver[]>(
-    initialDrivers && initialDrivers.length > 0
-      ? initialDrivers
-      : (isDemo ? DEFAULT_DRIVERS : [])
+    initialDrivers && initialDrivers.length > 0 ? initialDrivers : []
   );
   const [deliveries, setDeliveries] = useState<DeliveryOrder[]>(
-    initialDeliveries && initialDeliveries.length > 0
-      ? initialDeliveries
-      : (isDemo ? DEFAULT_DELIVERIES : [])
+    initialDeliveries && initialDeliveries.length > 0 ? initialDeliveries : []
   );
   const [zones, setZones] = useState<DeliveryZone[]>(
-    initialZones && initialZones.length > 0
-      ? initialZones
-      : (isDemo ? DEFAULT_DELIVERY_ZONES : [])
+    initialZones && initialZones.length > 0 ? initialZones : []
   );
   const [notifications, setNotifications] = useState<DeliveryNotification[]>([]);
 
-  // Selected Delivery for Live Map Tracking Canvas
+  // Selected Delivery for Live Map Tracking
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<string>(
-    isDemo ? 'del_001' : (deliveries[0]?.id || '')
+    deliveries[0]?.id || ''
   );
 
   // Modals
@@ -293,14 +282,7 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
           } as DeliveryDriver);
         });
 
-        if (list.length > 0) {
-          setDrivers(list);
-        } else if (isDemo && DEFAULT_DRIVERS.length > 0) {
-          const demoList = isBranchScoped && userBranch
-            ? DEFAULT_DRIVERS.filter(d => areBranchesMatching(d.branchId, userBranch))
-            : DEFAULT_DRIVERS;
-          setDrivers(demoList);
-        }
+        setDrivers(list);
       },
       (err) => {
         console.warn('Firestore drivers listener fallback:', err?.message || err);
@@ -402,7 +384,7 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
     return calculateDeliveryAnalytics(deliveries, drivers);
   }, [deliveries, drivers]);
 
-  // Selected Active Delivery for Live GPS Canvas View
+  // Selected Active Delivery for Live GPS Telemetry View
   const currentTrackingDelivery = useMemo(() => {
     return deliveries.find((d) => d.id === selectedDeliveryId) || deliveries[0];
   }, [deliveries, selectedDeliveryId]);
@@ -944,7 +926,7 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
             </div>
           </div>
 
-          {/* Right Column: Interactive Live GPS Map Canvas & Control Hub */}
+          {/* Right Column: Live GPS Telematics & Control Hub */}
           <div className="lg:col-span-7 space-y-6">
             {currentTrackingDelivery ? (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6 shadow-2xl">
@@ -1033,60 +1015,74 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
                   )}
                 </div>
 
-                {/* Simulated Visual GPS Map Canvas */}
-                <div className="relative w-full h-72 bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden p-6 flex flex-col justify-between">
-                  {/* Vector Grid Background */}
-                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:2rem_2rem] opacity-30" />
-                  
-                  {/* Route Line Simulation */}
-                  <div className="absolute inset-x-12 top-1/2 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 rounded-full shadow-lg shadow-emerald-500/30" />
+                {/* Real GPS Telemetry Display */}
+                <div className="relative w-full min-h-64 bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden p-6 flex flex-col justify-between">
+                  {/* Background Grid */}
+                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:2rem_2rem] opacity-20" />
 
-                  {/* Top Map Labels */}
+                  {/* Top Telemetry Header */}
                   <div className="relative z-10 flex items-center justify-between text-xs">
-                    <span className="bg-slate-900/90 backdrop-blur-md text-emerald-400 font-bold px-3 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
-                      <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" /> Live Telemetry Feed
-                    </span>
-
-                    <span className="bg-slate-900/90 backdrop-blur-md text-slate-300 font-bold px-3 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" /> Est. ETA: {currentTrackingDelivery.estimatedDeliveryTimeMinutes} mins
-                    </span>
-                  </div>
-
-                  {/* Map Pin Locations */}
-                  <div className="relative z-10 flex items-center justify-between px-6">
-                    {/* Branch / Kitchen Start Pin */}
-                    <div className="flex flex-col items-center">
-                      <div className="w-10 h-10 rounded-2xl bg-slate-900 border-2 border-emerald-500 flex items-center justify-center text-emerald-400 shadow-xl">
-                        <Building2 className="w-5 h-5" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-300 mt-2">Kitchen HQ</span>
-                      <span className="text-[9px] text-slate-500">Mogadishu Main</span>
-                    </div>
-
-                    {/* Driver Moving Icon */}
-                    <div className="flex flex-col items-center animate-bounce">
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black shadow-2xl shadow-emerald-500/50">
-                        <Truck className="w-6 h-6" />
-                      </div>
-                      <span className="text-[10px] font-black text-emerald-400 mt-2 bg-slate-900/90 px-2 py-0.5 rounded-md border border-slate-800">
-                        {currentTrackingDelivery.driverName || 'Driver Pin'}
+                    {currentTrackingDelivery.currentLat && currentTrackingDelivery.currentLng ? (
+                      <span className="bg-slate-900/90 backdrop-blur-md text-emerald-400 font-bold px-3 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
+                        <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" /> Live Telemetry Broadcasting
                       </span>
-                    </div>
+                    ) : (
+                      <span className="bg-slate-900/90 backdrop-blur-md text-slate-400 font-medium px-3 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-500" /> Live GPS Unavailable
+                      </span>
+                    )}
 
-                    {/* Customer Destination Pin */}
-                    <div className="flex flex-col items-center">
-                      <div className="w-10 h-10 rounded-2xl bg-indigo-900 border-2 border-indigo-400 flex items-center justify-center text-indigo-300 shadow-xl">
-                        <MapPin className="w-5 h-5" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-300 mt-2">{currentTrackingDelivery.customerName}</span>
-                      <span className="text-[9px] text-slate-500">Destination</span>
-                    </div>
+                    {currentTrackingDelivery.estimatedDeliveryTimeMinutes ? (
+                      <span className="bg-slate-900/90 backdrop-blur-md text-slate-300 font-bold px-3 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-400" /> Est. ETA: {currentTrackingDelivery.estimatedDeliveryTimeMinutes} mins
+                      </span>
+                    ) : null}
                   </div>
 
-                  {/* Bottom Map Stats */}
-                  <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
-                    <div>GPS Coords: <span className="text-white font-mono">2.0512° N, 45.3210° E</span></div>
-                    <div>Carrier Speed: <span className="text-emerald-400 font-bold">28 km/h</span></div>
+                  {/* Main Telemetry Body */}
+                  <div className="relative z-10 my-6">
+                    {currentTrackingDelivery.currentLat && currentTrackingDelivery.currentLng ? (
+                      <div className="flex flex-col sm:flex-row items-center justify-around gap-4 bg-slate-900/80 p-5 rounded-2xl border border-slate-800">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                            <Truck className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-slate-400 uppercase font-bold">Driver Telematics</div>
+                            <div className="text-sm font-bold text-white">{currentTrackingDelivery.driverName || 'Assigned Courier'}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] text-slate-400">Coordinates</div>
+                          <div className="text-xs font-mono text-emerald-400">{currentTrackingDelivery.currentLat.toFixed(4)}°, {currentTrackingDelivery.currentLng.toFixed(4)}°</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-6 text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 mb-3">
+                          <MapPin className="w-6 h-6 text-slate-500" />
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-300 mb-1">
+                          {currentLang === 'ar' ? 'الموقع الحي غير متوفر' : 'Live GPS Unavailable'}
+                        </h4>
+                        <p className="text-xs text-slate-500 max-w-sm">
+                          {currentLang === 'ar'
+                            ? 'لم يقم جهاز السائق ببث إحداثيات GPS المباشرة بعد. سيتم تحديث الموقع تلقائياً بمجرد إرسال الإشارة.'
+                            : 'Driver device has not broadcasted real-time coordinates yet. Telemetry will update automatically when received.'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Destination Summary */}
+                  <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 pt-3 border-t border-slate-800/80">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                      <span className="text-slate-300 font-medium">{currentTrackingDelivery.deliveryAddress || 'No destination address'}</span>
+                    </div>
+                    <div>
+                      Status: <span className="text-white font-bold uppercase">{currentTrackingDelivery.status}</span>
+                    </div>
                   </div>
                 </div>
 

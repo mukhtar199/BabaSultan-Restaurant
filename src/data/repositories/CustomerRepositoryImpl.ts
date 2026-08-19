@@ -329,46 +329,11 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
     try {
       const q = query(collection(db, COLLECTIONS.CUSTOMER_REWARDS), orderBy('pointsRequired', 'asc'));
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as CustomerReward));
-      if (list.length > 0) return list;
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as CustomerReward));
     } catch (error: any) {
       console.warn('Note fetching customer rewards from Firestore:', error?.message || error);
+      return [];
     }
-    return [
-      {
-        id: 'rew_1',
-        rewardName: '$5 Off Next Order',
-        description: 'Get a $5 discount on any meal purchase.',
-        pointsRequired: 100,
-        discountType: 'fixed_amount',
-        discountValue: 5,
-        isActive: true,
-        currentRedemptions: 12,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'rew_2',
-        rewardName: 'Free Beverage / Drink',
-        description: 'Redeem for a complimentary fresh juice or soda.',
-        pointsRequired: 150,
-        discountType: 'fixed_amount',
-        discountValue: 0,
-        isActive: true,
-        currentRedemptions: 24,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'rew_3',
-        rewardName: '15% Off Total Bill',
-        description: '15% discount voucher valid for dine-in or takeaway.',
-        pointsRequired: 250,
-        discountType: 'percentage',
-        discountValue: 15,
-        isActive: true,
-        currentRedemptions: 8,
-        createdAt: new Date().toISOString()
-      }
-    ];
   }
 
   async createReward(data: Omit<CustomerReward, 'id' | 'createdAt' | 'currentRedemptions'>): Promise<CustomerReward> {
@@ -437,41 +402,11 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
     try {
       const q = query(collection(db, COLLECTIONS.CUSTOMER_COUPONS), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as CustomerCoupon));
-      if (list.length > 0) return list;
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as CustomerCoupon));
     } catch (error: any) {
       console.warn('Note fetching customer coupons from Firestore:', error?.message || error);
+      return [];
     }
-    return [
-      {
-        id: 'coup_1',
-        code: 'WELCOME10',
-        title: 'Welcome 10% Discount',
-        description: '10% off for first-time orders',
-        discountType: 'percentage',
-        discountValue: 10,
-        minOrderAmount: 20,
-        usageLimit: 100,
-        usageCount: 14,
-        isActive: true,
-        expiryDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'coup_2',
-        code: 'MOGADISHU5',
-        title: '$5 Off Special',
-        description: 'Flat $5 discount on orders over $30',
-        discountType: 'fixed_amount',
-        discountValue: 5,
-        minOrderAmount: 30,
-        usageLimit: 50,
-        usageCount: 9,
-        isActive: true,
-        expiryDate: new Date(Date.now() + 60 * 86400000).toISOString().split('T')[0],
-        createdAt: new Date().toISOString()
-      }
-    ];
   }
 
   async createCoupon(data: Omit<CustomerCoupon, 'id' | 'createdAt' | 'usageCount'>): Promise<CustomerCoupon> {
@@ -547,7 +482,7 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
     const newRef = doc(collection(db, COLLECTIONS.CUSTOMER_NOTIFICATIONS));
     const now = new Date().toISOString();
 
-    const dispatchResult = CustomerService.simulateChannelDispatch(
+    const dispatchResult = CustomerService.dispatchChannelNotification(
       data.channel,
       data.recipient || '',
       data.message

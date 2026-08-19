@@ -95,7 +95,7 @@ export class CustomerService {
   /**
    * Dispatcher for communication channels (Email, SMS, Push, WhatsApp)
    */
-  static simulateChannelDispatch(
+  static dispatchChannelNotification(
     channel: NotificationChannel,
     contact: string,
     message: string
@@ -104,18 +104,9 @@ export class CustomerService {
       return { status: 'failed', details: 'Missing customer contact info' };
     }
 
-    const isDemo = typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEMO_MODE === 'true';
-    if (isDemo) {
-      return {
-        status: 'sent',
-        details: `[DEMO MODE: ${channel.toUpperCase()}] Simulated delivery to ${contact}`
-      };
-    }
-
-    // In production without external communications gateway configured:
     return {
       status: 'failed',
-      details: `Provider not configured. Communication channel [${channel.toUpperCase()}] gateway is not configured in production.`
+      details: `Provider not configured. Communication channel [${channel.toUpperCase()}] gateway is not configured.`
     };
   }
 }

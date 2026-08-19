@@ -119,7 +119,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   <span>${(receipt.subtotal || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>VAT (5%):</span>
+                  <span>VAT {receipt.taxRate ? `(${(receipt.taxRate * 100).toFixed(0)}%)` : (receipt.subtotal > 0 && receipt.tax ? `(${((receipt.tax / receipt.subtotal) * 100).toFixed(0)}%)` : '')}:</span>
                   <span>${(receipt.tax || 0).toFixed(2)}</span>
                 </div>
                 {(receipt.discount || 0) > 0 && (

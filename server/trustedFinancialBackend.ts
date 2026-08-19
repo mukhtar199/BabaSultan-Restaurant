@@ -374,90 +374,6 @@ function routeProductToStation(productName: string = '', category: string = ''):
 }
 
 // ==========================================
-// SYSTEM DEFAULT FALLBACK CONFIGURATIONS
-// ==========================================
-
-export const SYSTEM_DEFAULT_DELIVERY_ZONES: Array<{
-  id: string;
-  name: string;
-  code: string;
-  city: string;
-  coverageRadiusKm: number;
-  baseDeliveryFee: number;
-  minOrderAmount: number;
-  estimatedTimeMinutes: number;
-  isActive: boolean;
-  branchId: string;
-  branchName: string;
-}> = [
-  {
-    id: 'zone_001',
-    name: 'Mogadishu Central Business District',
-    code: 'Z-MOG-CBD',
-    city: 'Mogadishu',
-    coverageRadiusKm: 3.5,
-    baseDeliveryFee: 2.00,
-    minOrderAmount: 15.00,
-    estimatedTimeMinutes: 25,
-    isActive: true,
-    branchId: 'branch_hq_01',
-    branchName: 'Headquarters - Mogadishu Main'
-  },
-  {
-    id: 'zone_002',
-    name: 'KM4 & Airport Corridor',
-    code: 'Z-MOG-KM4',
-    city: 'Mogadishu',
-    coverageRadiusKm: 6.0,
-    baseDeliveryFee: 3.50,
-    minOrderAmount: 20.00,
-    estimatedTimeMinutes: 35,
-    isActive: true,
-    branchId: 'branch_hq_01',
-    branchName: 'Headquarters - Mogadishu Main'
-  },
-  {
-    id: 'zone_003',
-    name: 'Hargeisa Downtown & Independence Ave',
-    code: 'Z-HAR-CENT',
-    city: 'Hargeisa',
-    coverageRadiusKm: 4.0,
-    baseDeliveryFee: 2.50,
-    minOrderAmount: 15.00,
-    estimatedTimeMinutes: 30,
-    isActive: true,
-    branchId: 'branch_hargeisa_01',
-    branchName: 'Hargeisa Flagship Branch'
-  },
-  {
-    id: 'zone_004',
-    name: 'Kismayo Ocean View & Port Zone',
-    code: 'Z-KIS-PORT',
-    city: 'Kismayo',
-    coverageRadiusKm: 5.0,
-    baseDeliveryFee: 3.00,
-    minOrderAmount: 18.00,
-    estimatedTimeMinutes: 30,
-    isActive: true,
-    branchId: 'branch_kismayo_01',
-    branchName: 'Kismayo Coastal Branch'
-  },
-  {
-    id: 'zone_005',
-    name: 'Wadajir & Medina District',
-    code: 'Z-MOG-WAD',
-    city: 'Mogadishu',
-    coverageRadiusKm: 7.5,
-    baseDeliveryFee: 4.00,
-    minOrderAmount: 25.00,
-    estimatedTimeMinutes: 40,
-    isActive: true,
-    branchId: 'branch_hq_01',
-    branchName: 'Headquarters - Mogadishu Main'
-  }
-];
-
-// ==========================================
 // P0 TRUSTED FINANCIAL HANDLERS (ADMIN SDK)
 // ==========================================
 
@@ -676,15 +592,9 @@ async function executePosCheckoutRestFallback(
     }
 
     if (orderData.deliveryZoneId) {
-      let zDoc = await safeGetDoc('delivery_zones', orderData.deliveryZoneId, user.idToken);
+      const zDoc = await safeGetDoc('delivery_zones', orderData.deliveryZoneId, user.idToken);
       if (!zDoc) {
-        const defaultZone = SYSTEM_DEFAULT_DELIVERY_ZONES.find(z => z.id === orderData.deliveryZoneId);
-        if (defaultZone) {
-          zDoc = defaultZone;
-        }
-      }
-      if (!zDoc) {
-        throw new Error(`Delivery zone "${orderData.deliveryZoneId}" not found. Checkout rejected.`);
+        throw new Error(`Delivery zone "${orderData.deliveryZoneId}" not found in database. Checkout rejected.`);
       }
       if (zDoc.branchId && zDoc.branchId !== targetBranchId) {
         throw new Error(`Delivery zone "${orderData.deliveryZoneId}" does not belong to branch "${targetBranchId}". Checkout rejected.`);
@@ -714,19 +624,8 @@ async function executePosCheckoutRestFallback(
           if (typeof branchDoc.defaultDeliveryFee === 'number') serverFee = branchDoc.defaultDeliveryFee;
           else if (typeof branchDoc.deliveryFee === 'number') serverFee = branchDoc.deliveryFee;
         }
-        if (serverFee === null && !branchDoc) {
-          const SYSTEM_DEFAULT_BRANCH_DELIVERY_FEE: Record<string, number> = {
-            'branch_hq_01': 2.00,
-            'branch_hargeisa_01': 2.50,
-            'branch_kismayo_01': 1.50,
-            'all': 2.00
-          };
-          if (SYSTEM_DEFAULT_BRANCH_DELIVERY_FEE[targetBranchId] !== undefined) {
-            serverFee = SYSTEM_DEFAULT_BRANCH_DELIVERY_FEE[targetBranchId];
-          }
-        }
         if (serverFee === null) {
-          throw new Error(`Delivery fee configuration not found for branch "${targetBranchId}". Checkout rejected.`);
+          throw new Error(`Delivery fee configuration not found for branch "${targetBranchId}". Please configure branch settings or specify a valid delivery zone. Checkout rejected.`);
         }
         deliveryFee = Math.max(0, serverFee);
       } else {
@@ -1416,15 +1315,9 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
 
         if (orderData.deliveryZoneId) {
           const zoneSnap = await transaction.get(db.collection('delivery_zones').doc(orderData.deliveryZoneId));
-          let zData: any = zoneSnap.exists ? zoneSnap.data() : null;
+          const zData: any = zoneSnap.exists ? zoneSnap.data() : null;
           if (!zData) {
-            const defaultZone = SYSTEM_DEFAULT_DELIVERY_ZONES.find(z => z.id === orderData.deliveryZoneId);
-            if (defaultZone) {
-              zData = defaultZone;
-            }
-          }
-          if (!zData) {
-            throw new Error(`Delivery zone "${orderData.deliveryZoneId}" not found. Checkout rejected.`);
+            throw new Error(`Delivery zone "${orderData.deliveryZoneId}" not found in database. Checkout rejected.`);
           }
           if (zData.branchId && zData.branchId !== targetBranchId) {
             throw new Error(`Delivery zone "${orderData.deliveryZoneId}" does not belong to branch "${targetBranchId}". Checkout rejected.`);
@@ -1455,19 +1348,8 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
               if (typeof bData.defaultDeliveryFee === 'number') serverFee = bData.defaultDeliveryFee;
               else if (typeof bData.deliveryFee === 'number') serverFee = bData.deliveryFee;
             }
-            if (serverFee === null && !branchSnap.exists) {
-              const SYSTEM_DEFAULT_BRANCH_DELIVERY_FEE: Record<string, number> = {
-                'branch_hq_01': 2.00,
-                'branch_hargeisa_01': 2.50,
-                'branch_kismayo_01': 1.50,
-                'all': 2.00
-              };
-              if (SYSTEM_DEFAULT_BRANCH_DELIVERY_FEE[targetBranchId] !== undefined) {
-                serverFee = SYSTEM_DEFAULT_BRANCH_DELIVERY_FEE[targetBranchId];
-              }
-            }
             if (serverFee === null) {
-              throw new Error(`Delivery fee configuration not found for branch "${targetBranchId}". Checkout rejected.`);
+              throw new Error(`Delivery fee configuration not found for branch "${targetBranchId}". Please configure branch settings or specify a valid delivery zone. Checkout rejected.`);
             }
             deliveryFee = Math.max(0, serverFee);
           } else {

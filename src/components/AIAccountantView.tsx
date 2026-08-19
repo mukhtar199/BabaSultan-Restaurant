@@ -701,7 +701,7 @@ export const AIAccountantView: React.FC<AIAccountantViewProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-5 rounded-2xl border border-slate-200 bg-emerald-50/50 space-y-2">
-                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Estimated Sales VAT Payable (5%)</p>
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Estimated Sales VAT Payable {metrics.netRevenue > 0 && metrics.taxEstimatedVAT > 0 ? `(${((metrics.taxEstimatedVAT / metrics.netRevenue) * 100).toFixed(0)}%)` : ''}</p>
                   <p className="text-3xl font-black text-emerald-800">${(metrics.taxEstimatedVAT || 0).toFixed(2)}</p>
                   <p className="text-xs text-slate-500">Calculated on Net Sales Revenue (${(metrics.netRevenue || 0).toFixed(2)})</p>
                 </div>

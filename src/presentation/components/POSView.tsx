@@ -64,8 +64,10 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
   const [tableNumber, setTableNumber] = useState<string>('T-01');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
-  // Discount & Tax
-  const [taxRatePercent, setTaxRatePercent] = useState<number>(SYSTEM_CONFIG.DEFAULT_TAX_RATE_PERCENT);
+  // Discount & Tax State (Starts in explicit loading state until authoritative tax config is retrieved)
+  const [taxRatePercent, setTaxRatePercent] = useState<number | null>(null);
+  const [isTaxLoading, setIsTaxLoading] = useState<boolean>(true);
+  const [taxConfigError, setTaxConfigError] = useState<string | null>(null);
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
 
@@ -90,21 +92,51 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
     refreshHoldCount();
   }, []);
 
-  // Dynamically load active tax configuration for current branch
+  // Dynamically load active authoritative tax configuration for current branch
   useEffect(() => {
     let isMounted = true;
     const loadBranchTaxRate = async () => {
+      setIsTaxLoading(true);
+      setTaxConfigError(null);
       try {
         const snap = await getDocs(collection(db, COLLECTIONS.TAXES));
         if (!snap.empty && isMounted) {
-          const taxes = snap.docs.map(d => d.data() as any).filter(t => t.isActive !== false && t.status !== 'Inactive');
-          const branchTax = taxes.find(t => t.branchId === currentBranchId) || taxes.find(t => t.isDefault) || taxes[0];
-          if (branchTax && typeof branchTax.rate === 'number' && Number.isFinite(branchTax.rate)) {
-            setTaxRatePercent(branchTax.rate);
+          const activeTaxes = snap.docs
+            .map(d => d.data() as any)
+            .filter(t => t.isActive !== false && t.status !== 'Inactive');
+
+          let resolvedTax: any = null;
+
+          if (isHQUser) {
+            // HQ/Global operation: Explicit global tax configuration
+            resolvedTax = activeTaxes.find(t => t.branchId === 'all' || !t.branchId || t.isDefault);
+          } else if (currentBranchId) {
+            // Branch user: Active tax configured for exact branch only (strict isolation)
+            resolvedTax = activeTaxes.find(t => t.branchId === currentBranchId);
+          }
+
+          if (resolvedTax && typeof resolvedTax.rate === 'number' && Number.isFinite(resolvedTax.rate)) {
+            setTaxRatePercent(resolvedTax.rate);
+            setIsTaxLoading(false);
+            setTaxConfigError(null);
+            return;
           }
         }
-      } catch (err) {
-        console.warn('Could not load dynamic tax configuration, maintaining current rate', err);
+        if (isMounted) {
+          setTaxRatePercent(null);
+          const errorMsg = isHQUser
+            ? 'No global authoritative tax rate configured. Please configure global tax in Settings.'
+            : `No authoritative tax rate configured for branch "${currentBranchId || 'Unassigned'}". Please configure branch taxes in Settings.`;
+          setTaxConfigError(errorMsg);
+          setIsTaxLoading(false);
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          console.error('Failed to load authoritative tax configuration:', err);
+          setTaxRatePercent(null);
+          setTaxConfigError('Tax configuration error: Unable to load authoritative tax rate.');
+          setIsTaxLoading(false);
+        }
       }
     };
     loadBranchTaxRate();
@@ -128,8 +160,9 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
     return matchesCategory && matchesSearch;
   });
 
-  // Calculate cart totals
-  const cartTotals = calculateCartTotals(cart, taxRatePercent, discountValue, discountType);
+  // Calculate cart totals (using authoritative tax rate once loaded)
+  const effectiveTaxRate = taxRatePercent ?? 0;
+  const cartTotals = calculateCartTotals(cart, effectiveTaxRate, discountValue, discountType);
 
   // Product Click Handler
   const handleProductClick = (product: Product) => {
@@ -704,7 +737,16 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
                 <span className="text-white font-medium">${(cartTotals?.subtotal || 0).toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>{t.pos.vat} ({taxRatePercent}%)</span>
+                <span>
+                  {t.pos.vat}{' '}
+                  {isTaxLoading ? (
+                    <span className="text-slate-500 italic">(Loading...)</span>
+                  ) : taxConfigError ? (
+                    <span className="text-rose-400">(Config Error)</span>
+                  ) : (
+                    <span>({taxRatePercent}%)</span>
+                  )}
+                </span>
                 <span className="text-white font-medium">${(cartTotals?.tax || 0).toFixed(2)}</span>
               </div>
               {(cartTotals?.discountAmount || 0) > 0 && (
@@ -718,6 +760,13 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
                 <span className="text-emerald-400">${(cartTotals?.grandTotal || 0).toFixed(2)}</span>
               </div>
             </div>
+
+            {/* Warning if tax configuration error */}
+            {taxConfigError && (
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[11px] font-medium text-center">
+                {taxConfigError}
+              </div>
+            )}
 
             {/* Warning if branch is missing for branch user */}
             {!authLoading && !isBranchLoaded && (
@@ -738,16 +787,20 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
               </button>
 
               <button
-                disabled={cart.length === 0 || authLoading || !isBranchLoaded}
+                disabled={cart.length === 0 || authLoading || !isBranchLoaded || isTaxLoading || Boolean(taxConfigError) || taxRatePercent === null}
                 onClick={() => {
                   if (!isBranchLoaded) {
                     alert('Your branch information is not loaded. Please refresh or sign in again.');
                     return;
                   }
+                  if (taxConfigError || taxRatePercent === null) {
+                    alert('Cannot checkout without an active tax configuration. Please configure taxes in Settings.');
+                    return;
+                  }
                   setIsPaymentModalOpen(true);
                 }}
                 className="col-span-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-extrabold py-3 rounded-2xl transition cursor-pointer shadow-lg shadow-emerald-500/20 text-xs flex items-center justify-center gap-2"
-                title={!isBranchLoaded ? 'Your branch information is not loaded. Please refresh or sign in again.' : undefined}
+                title={!isBranchLoaded ? 'Your branch information is not loaded.' : taxConfigError ? 'Tax configuration error' : undefined}
               >
                 <CreditCard className="w-4 h-4" />
                 <span>{t.pos.payButton} (${(cartTotals?.grandTotal || 0).toFixed(2)})</span>

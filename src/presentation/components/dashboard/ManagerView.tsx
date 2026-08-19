@@ -20,6 +20,7 @@ interface ManagerViewProps {
   orders: Order[];
   products: Product[];
   ingredients: Ingredient[];
+  feedbacks?: CustomerFeedback[];
   onNavigateToTab?: (tab: string) => void;
 }
 
@@ -27,6 +28,7 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
   orders,
   products,
   ingredients,
+  feedbacks = [],
   onNavigateToTab
 }) => {
   const { t } = useAuth();
@@ -46,30 +48,6 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
   const lowStockIngredients = ingredients.filter(i => i.stock <= i.minStockAlert);
   const lowStockProducts = products.filter(p => p.stock <= p.minStockAlert);
   const totalStockAlerts = lowStockIngredients.length + lowStockProducts.length;
-
-  // Mock / Live Feedback Data
-  const sampleFeedbacks: CustomerFeedback[] = [
-    {
-      id: 'fb_1',
-      orderId: 'ORD-101',
-      customerName: 'Khadija Said',
-      rating: 5,
-      compliments: 'Delicious Suqaar and fast tea service!',
-      category: 'food_quality',
-      status: 'resolved',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'fb_2',
-      orderId: 'ORD-106',
-      customerName: 'Zahra Ali',
-      rating: 2,
-      complaint: 'Mandi Lamb dish preparation took over 20 minutes.',
-      category: 'speed',
-      status: 'open',
-      createdAt: new Date().toISOString()
-    }
-  ];
 
   return (
     <div className="space-y-6">
@@ -226,27 +204,33 @@ export const ManagerView: React.FC<ManagerViewProps> = ({
           </h3>
 
           <div className="space-y-3">
-            {sampleFeedbacks.map(fb => (
-              <div key={fb.id} className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-white">{fb.customerName}</span>
-                  <div className="flex items-center text-amber-400 font-bold">
-                    {'★'.repeat(fb.rating)}{'☆'.repeat(5 - fb.rating)}
+            {feedbacks.length === 0 ? (
+              <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 text-center text-slate-500 text-xs font-medium">
+                No customer feedback recorded yet.
+              </div>
+            ) : (
+              feedbacks.map(fb => (
+                <div key={fb.id} className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">{fb.customerName}</span>
+                    <div className="flex items-center text-amber-400 font-bold">
+                      {'★'.repeat(fb.rating)}{'☆'.repeat(5 - fb.rating)}
+                    </div>
+                  </div>
+
+                  <p className="text-slate-300 italic text-[11px]">
+                    "{fb.complaint || fb.compliments}"
+                  </p>
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1">
+                    <span>Order: {fb.orderId}</span>
+                    <span className={`font-bold capitalize ${fb.status === 'resolved' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {fb.status}
+                    </span>
                   </div>
                 </div>
-
-                <p className="text-slate-300 italic text-[11px]">
-                  "{fb.complaint || fb.compliments}"
-                </p>
-
-                <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1">
-                  <span>Order: {fb.orderId}</span>
-                  <span className={`font-bold capitalize ${fb.status === 'resolved' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {fb.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 

@@ -147,6 +147,10 @@ export const AccountingManagementView: React.FC = () => {
   const [selectedRegisterToClose, setSelectedRegisterToClose] = useState<CashRegister | null>(null);
   const [closeActualCash, setCloseActualCash] = useState<number>(0);
 
+  const userRole = (userRecord?.role || '').toLowerCase().trim();
+  const isHqUser = userRole === 'owner' || (userRole === 'admin' && (!userRecord?.branchId || userRecord?.branchId === 'all'));
+  const effectiveBranchId = isHqUser ? undefined : userRecord?.branchId;
+
   // Load Data
   const loadAllData = async () => {
     setLoading(true);
@@ -166,16 +170,16 @@ export const AccountingManagementView: React.FC = () => {
         fin
       ] = await Promise.all([
         controller.fetchAccounts(),
-        controller.fetchJournalEntries(),
-        controller.fetchLedger(),
-        controller.fetchExpenses(),
-        controller.fetchRevenues(),
-        controller.fetchReceivables(),
-        controller.fetchPayables(),
-        controller.fetchCashRegisters(),
+        controller.fetchJournalEntries(effectiveBranchId),
+        controller.fetchLedger(undefined, undefined, undefined, effectiveBranchId),
+        controller.fetchExpenses(effectiveBranchId),
+        controller.fetchRevenues(effectiveBranchId),
+        controller.fetchReceivables(effectiveBranchId),
+        controller.fetchPayables(effectiveBranchId),
+        controller.fetchCashRegisters(effectiveBranchId),
         controller.fetchBankAccounts(),
-        controller.fetchTaxes(),
-        controller.fetchFinancialStatements()
+        controller.fetchTaxes(effectiveBranchId),
+        controller.fetchFinancialStatements(undefined, undefined, effectiveBranchId)
       ]);
 
       setAccounts(accs);

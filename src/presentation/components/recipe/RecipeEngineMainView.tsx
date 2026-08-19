@@ -73,7 +73,6 @@ export const RecipeEngineMainView: React.FC<RecipeEngineMainViewProps> = ({
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [conversions, setConversions] = useState<UnitConversion[]>([]);
   const [wasteRecords, setWasteRecords] = useState<WasteRecord[]>([]);
-  const [seedMsg, setSeedMsg] = useState('');
 
   // 1. Subscribe to Real-Time Data
   useEffect(() => {
@@ -89,13 +88,6 @@ export const RecipeEngineMainView: React.FC<RecipeEngineMainViewProps> = ({
       unsubWaste();
     };
   }, [controller]);
-
-  // Initial Seed
-  const handleSeedData = async () => {
-    await controller.seedInitialData();
-    setSeedMsg('Initial recipe and ingredient datasets seeded successfully!');
-    setTimeout(() => setSeedMsg(''), 4000);
-  };
 
   const t = recipeDict[lang] || recipeDict.en;
 
@@ -146,17 +138,6 @@ export const RecipeEngineMainView: React.FC<RecipeEngineMainViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Seed Button (Demo Mode Only) */}
-            {import.meta.env.VITE_DEMO_MODE === 'true' && (
-              <button
-                onClick={handleSeedData}
-                className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-2 cursor-pointer transition shadow-md"
-              >
-                <Database className="w-4 h-4 text-amber-400" />
-                Seed Sample Recipes
-              </button>
-            )}
-
             {/* Language Switcher */}
             <div className="flex items-center gap-1 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
               <Globe className="w-4 h-4 text-slate-400 ml-1.5" />
@@ -187,13 +168,6 @@ export const RecipeEngineMainView: React.FC<RecipeEngineMainViewProps> = ({
             </div>
           </div>
         </div>
-
-        {seedMsg && (
-          <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-xs text-emerald-400 font-bold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            {seedMsg}
-          </div>
-        )}
 
         {/* Global KPI Metrics Ribbon */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800">

@@ -20,43 +20,43 @@ export interface IAccountingRepository {
   updateAccount(id: string, updates: Partial<Account>): Promise<void>;
   
   // Journal Entries & Ledger
-  getJournalEntries(): Promise<JournalEntry[]>;
+  getJournalEntries(branchId?: string): Promise<JournalEntry[]>;
   createJournalEntry(entry: Omit<JournalEntry, 'id' | 'createdAt' | 'entryNumber'>): Promise<JournalEntry>;
-  getLedger(accountId?: string, startDate?: string, endDate?: string): Promise<LedgerEntry[]>;
+  getLedger(accountId?: string, startDate?: string, endDate?: string, branchId?: string): Promise<LedgerEntry[]>;
   
   // Expenses
-  getExpenses(): Promise<AccountingExpense[]>;
+  getExpenses(branchId?: string): Promise<AccountingExpense[]>;
   createExpense(expense: Omit<AccountingExpense, 'id' | 'createdAt' | 'expenseNumber'>): Promise<AccountingExpense>;
   
   // Revenues
-  getRevenues(): Promise<AccountingRevenue[]>;
+  getRevenues(branchId?: string): Promise<AccountingRevenue[]>;
   createRevenue(revenue: Omit<AccountingRevenue, 'id' | 'createdAt' | 'revenueNumber'>): Promise<AccountingRevenue>;
   
   // Accounts Receivable
-  getReceivables(): Promise<ReceivableItem[]>;
+  getReceivables(branchId?: string): Promise<ReceivableItem[]>;
   createReceivable(item: Omit<ReceivableItem, 'id' | 'createdAt' | 'paidAmount' | 'remainingBalance' | 'status' | 'payments'>): Promise<ReceivableItem>;
   recordARPayment(receivableId: string, payment: { amount: number; paymentMethod: 'Cash' | 'Bank'; date: string; reference?: string; notes?: string }): Promise<void>;
   
   // Accounts Payable
-  getPayables(): Promise<PayableItem[]>;
+  getPayables(branchId?: string): Promise<PayableItem[]>;
   createPayable(item: Omit<PayableItem, 'id' | 'createdAt' | 'paidAmount' | 'remainingBalance' | 'status' | 'payments'>): Promise<PayableItem>;
   recordAPPayment(payableId: string, payment: { amount: number; paymentMethod: 'Cash' | 'Bank'; date: string; reference?: string; notes?: string }): Promise<void>;
   
   // Cash & Bank
-  getCashRegisters(): Promise<CashRegister[]>;
+  getCashRegisters(branchId?: string): Promise<CashRegister[]>;
   openCashRegister(registerName: string, branchName: string, openingBalance: number, openedBy: string, branchId?: string): Promise<CashRegister>;
   closeCashRegister(id: string, actualClosingBalance: number, closedBy: string, notes?: string): Promise<void>;
   
   getBankAccounts(): Promise<BankAccount[]>;
   createBankAccount(account: Omit<BankAccount, 'id' | 'createdAt' | 'currentBalance'>, initialBalance?: number): Promise<BankAccount>;
-  getBankTransactions(bankAccountId?: string): Promise<BankTransaction[]>;
+  getBankTransactions(bankAccountId?: string, branchId?: string): Promise<BankTransaction[]>;
   transferFunds(fromAccountId: string, toAccountId: string, amount: number, reference: string, description: string): Promise<void>;
   
   // Tax
-  getTaxes(): Promise<TaxConfig[]>;
+  getTaxes(branchId?: string): Promise<TaxConfig[]>;
   createTax(tax: Omit<TaxConfig, 'id'>): Promise<TaxConfig>;
   updateTax(id: string, updates: Partial<TaxConfig>): Promise<void>;
   
   // Financial Statements & Reports
-  getFinancialStatements(startDate?: string, endDate?: string): Promise<FinancialStatements>;
+  getFinancialStatements(startDate?: string, endDate?: string, branchId?: string): Promise<FinancialStatements>;
 }

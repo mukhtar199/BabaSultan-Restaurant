@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Category } from '../../../types';
 import { useAuth } from '../../context/AuthContext';
 import { validateCategoryForm, ValidationError } from '../../../lib/validation/productValidation';
-import { SAMPLE_RESTAURANT_FOOD_IMAGES, compressAndOptimizeImage } from '../../../infrastructure/storage/imageService';
+import { compressAndOptimizeImage } from '../../../infrastructure/storage/imageService';
 import {
   X,
   Plus,
@@ -47,7 +47,7 @@ export const CategoryManagementModal: React.FC<CategoryManagementModalProps> = (
       nameAr: '',
       nameSo: '',
       description: '',
-      imageUrl: SAMPLE_RESTAURANT_FOOD_IMAGES[0],
+      imageUrl: '',
       order: categories.length + 1,
       isActive: true
     });
@@ -324,11 +324,17 @@ export const CategoryManagementModal: React.FC<CategoryManagementModalProps> = (
                         </button>
                       </div>
 
-                      <img
-                        src={cat.imageUrl || SAMPLE_RESTAURANT_FOOD_IMAGES[0]}
-                        alt={cat.name}
-                        className="w-10 h-10 rounded-xl object-cover border border-slate-800 bg-slate-900"
-                      />
+                      {cat.imageUrl ? (
+                        <img
+                          src={cat.imageUrl}
+                          alt={cat.name}
+                          className="w-10 h-10 rounded-xl object-cover border border-slate-800 bg-slate-900"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl border border-slate-800 bg-slate-900 flex items-center justify-center text-slate-500">
+                          <Layers className="w-5 h-5" />
+                        </div>
+                      )}
 
                       <div>
                         <div className="flex items-center gap-2">

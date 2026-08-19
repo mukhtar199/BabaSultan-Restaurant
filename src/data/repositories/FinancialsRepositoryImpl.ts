@@ -55,7 +55,7 @@ export class FinancialsRepositoryImpl implements IFinancialsRepository {
     const netProfit = totalRevenue - totalExpenses - totalCOGS;
     const profitMarginPercent = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
     
-    // Authoritative dynamic lookup from configured Tax Settings (No silent 5% hardcoded fallback)
+    // Authoritative dynamic lookup from configured Tax Settings (No silent hardcoded fallback or random picking)
     const taxesSnap = await getDocs(collection(db, COLLECTIONS.TAXES));
     if (taxesSnap.empty) {
       throw new Error('Authoritative tax configuration is unavailable.');
@@ -68,11 +68,26 @@ export class FinancialsRepositoryImpl implements IFinancialsRepository {
       throw new Error('No active tax configuration found.');
     }
 
-    const defaultTax = activeTaxes.find(t => t.isDefault) || activeTaxes[0];
-    if (!defaultTax || typeof defaultTax.rate !== 'number' || !Number.isFinite(defaultTax.rate)) {
+    let selectedTax: any = null;
+    if (branchId && branchId !== 'all') {
+      selectedTax = activeTaxes.find(t => t.branchId === branchId);
+      if (!selectedTax) {
+        selectedTax = activeTaxes.find(t => (!t.branchId || t.branchId === 'all') && t.isDefault);
+      }
+      if (!selectedTax) {
+        throw new Error(`No active tax configuration found for branch ${branchId}.`);
+      }
+    } else {
+      selectedTax = activeTaxes.find(t => t.isDefault) || activeTaxes.find(t => !t.branchId || t.branchId === 'all');
+      if (!selectedTax) {
+        throw new Error('No active global tax configuration found.');
+      }
+    }
+
+    if (!selectedTax || typeof selectedTax.rate !== 'number' || !Number.isFinite(selectedTax.rate)) {
       throw new Error('Authoritative tax rate is invalid or missing.');
     }
-    const taxRate = defaultTax.rate / 100;
+    const taxRate = selectedTax.rate / 100;
     const taxLiability = totalRevenue * taxRate;
 
     return {

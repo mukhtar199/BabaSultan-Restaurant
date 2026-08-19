@@ -60,7 +60,4 @@ export interface IRecipeRepository {
   getConsumptionAnalytics(): Promise<ConsumptionStat[]>;
   getIngredientForecasts(): Promise<IngredientForecast[]>;
   getFoodCostDashboardData(): Promise<FoodCostDashboardData>;
-
-  // Seed sample recipes
-  seedInitialRecipesAndIngredients(): Promise<void>;
 }

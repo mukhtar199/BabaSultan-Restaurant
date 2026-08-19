@@ -42,7 +42,7 @@ export const InitialSetupWizardModal: React.FC<InitialSetupWizardModalProps> = (
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
-  const [saveMode, setSaveMode] = useState<'firestore' | 'preview_local' | null>(null);
+  const [saveMode, setSaveMode] = useState<'firestore' | null>(null);
   const [showSummaryScreen, setShowSummaryScreen] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -209,13 +209,8 @@ export const InitialSetupWizardModal: React.FC<InitialSetupWizardModalProps> = (
       setSaveSuccess(true);
       setShowSummaryScreen(true);
     } catch (err: any) {
-      console.warn('Setup wizard save error:', err);
-      try {
-        localStorage.setItem('erp_initial_setup_completed', 'true');
-      } catch (e) {}
-      setSaveMode('preview_local');
-      setSaveSuccess(true);
-      setShowSummaryScreen(true);
+      console.error('Setup wizard save error:', err);
+      setErrorMessage(err?.message || 'Failed to save configuration to Firestore. Please check your network and credentials.');
     } finally {
       setIsSaving(false);
     }
@@ -293,17 +288,9 @@ export const InitialSetupWizardModal: React.FC<InitialSetupWizardModalProps> = (
 
           {showSummaryScreen ? (
             <div className="space-y-6">
-              <div className={`p-4 rounded-2xl flex items-center gap-3 text-sm font-bold border ${
-                saveMode === 'preview_local'
-                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-              }`}>
+              <div className="p-4 rounded-2xl flex items-center gap-3 text-sm font-bold border bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
                 <CheckCircle2 className="w-6 h-6 shrink-0" />
-                <span>
-                  {saveMode === 'preview_local'
-                    ? 'Setup completed successfully. Data saved locally (Preview Mode).'
-                    : 'Setup completed successfully. Data synchronized with Firestore.'}
-                </span>
+                <span>Setup completed successfully. Data synchronized with Firestore.</span>
               </div>
 
               <div className="bg-slate-950 border border-slate-800 p-6 rounded-2xl space-y-5">

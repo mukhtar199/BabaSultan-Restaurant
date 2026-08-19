@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PaymentMethod, POSCheckoutPayload, CartItem, OrderType } from '../../../domain/entities/pos';
 import { Customer, DeliveryZone } from '../../../types';
-import { DEFAULT_DELIVERY_ZONES } from '../../../lib/deliveryService';
 import { X, DollarSign, CreditCard, Smartphone, Globe, CheckCircle2, MapPin, Truck } from 'lucide-react';
 
 interface PaymentModalProps {
@@ -39,9 +38,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onClose,
   onConfirmPayment
 }) => {
-  const activeZones = (deliveryZones && deliveryZones.length > 0) 
-    ? deliveryZones 
-    : (import.meta.env.VITE_DEMO_MODE === 'true' ? DEFAULT_DELIVERY_ZONES : []);
+  const activeZones = deliveryZones || [];
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [customerName, setCustomerName] = useState<string>(selectedCustomer?.name || '');

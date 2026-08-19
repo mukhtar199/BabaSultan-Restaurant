@@ -3,7 +3,6 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import {
   db,
   COLLECTIONS,
-  seedInitialFirestoreData,
   executeAIActionFirestore,
   addExpenseFirestore,
   addPurchaseFirestore,
@@ -35,7 +34,6 @@ import { ProtectedRoute } from './presentation/components/common/ProtectedRoute'
 import { RoleGuard } from './presentation/components/common/RoleGuard';
 import { ErrorBoundary } from './presentation/components/common/ErrorBoundary';
 import { handleFirestoreError, OperationType } from './infrastructure/firebase/errorHandler';
-import { getLocalStorageState } from './lib/localStorageData';
 
 // Phase 2 Auth Components
 import { UserManagementView } from './presentation/components/auth/UserManagementView';
@@ -79,7 +77,6 @@ function ERPAppContent() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
   const [isSetupWizardOpen, setIsSetupWizardOpen] = useState(false);
-  const [seedSuccessMsg, setSeedSuccessMsg] = useState<string | null>(null);
 
   // Live Firestore State
   const [orders, setOrders] = useState<Order[]>([]);
@@ -212,7 +209,11 @@ function ERPAppContent() {
       console.warn('Refunds listener notice:', err?.message || err);
     });
 
-    const unsubBankTx = onSnapshot(collection(db, COLLECTIONS.BANK_TRANSACTIONS), (snapshot) => {
+    const bankTxQuery = isBranchScoped
+      ? query(collection(db, COLLECTIONS.BANK_TRANSACTIONS), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.BANK_TRANSACTIONS));
+
+    const unsubBankTx = onSnapshot(bankTxQuery, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BankTransaction));
       docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setBankTransactions(docs);
@@ -241,25 +242,6 @@ function ERPAppContent() {
       unsubAccounts();
     };
   }, [userRecord?.branchId, userRecord?.role, ordersRetryCount]);
-
-  // Seed Data Handler
-  const handleSeedData = async () => {
-    if (import.meta.env.VITE_DEMO_MODE !== 'true') {
-      alert('Permission Denied: Demo data seeding is disabled in Production mode.');
-      return;
-    }
-    if (userRecord && !['Owner', 'owner', 'Admin', 'admin', 'Manager', 'manager'].includes(userRecord.role)) {
-      alert('Permission Denied: Only Management roles can seed demo data.');
-      return;
-    }
-    try {
-      await seedInitialFirestoreData();
-      setSeedSuccessMsg('Firestore database populated with realistic restaurant ERP operational records!');
-      setTimeout(() => setSeedSuccessMsg(null), 5000);
-    } catch (e: any) {
-      alert(`Error seeding Firestore: ${e.message}`);
-    }
-  };
 
   // AI Assistant Automated Action Handler (Server-Authoritative via Trusted Backend API)
   const handleExecuteAIAction = async (actionType: string, payload: any) => {
@@ -294,33 +276,6 @@ function ERPAppContent() {
   return (
     <ProtectedRoute>
       <Layout currentView={currentView} onSelectView={setCurrentView} onOpenSetupWizard={() => setIsSetupWizardOpen(true)}>
-        {/* Seed Success Toast */}
-        {seedSuccessMsg && (
-          <div className="bg-emerald-500 text-slate-950 font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center justify-between shadow-lg mb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>{seedSuccessMsg}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Auto Seed Prompt if database is empty in Demo Mode */}
-        {import.meta.env.VITE_DEMO_MODE === 'true' && products.length === 0 && orders.length === 0 && (
-          <div className="p-6 rounded-3xl bg-slate-900 border border-emerald-500/30 text-center shadow-xl mb-6">
-            <Database className="w-10 h-10 text-emerald-400 mx-auto mb-3 animate-bounce" />
-            <h3 className="text-lg font-bold text-white mb-1">Firestore Database Connected</h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-              Your Firebase Firestore database is initialized. Click below to populate sample restaurant records for testing.
-            </p>
-            <button
-              onClick={handleSeedData}
-              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs px-5 py-2.5 rounded-xl transition cursor-pointer shadow-lg shadow-emerald-500/20"
-            >
-              Seed Commercial ERP Sample Data
-            </button>
-          </div>
-        )}
-
         {/* View Router */}
         {currentView === 'dashboard' && (
           <DashboardView

@@ -30,7 +30,7 @@ interface NavbarProps {
   onOpenAIAssistant: () => void;
   lowStockCount: number;
   overdueCount: number;
-  onSeedData: () => void;
+  onSeedData?: () => void;
   onClearData: () => void;
 }
 
@@ -42,7 +42,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAIAssistant,
   lowStockCount,
   overdueCount,
-  onSeedData,
   onClearData
 }) => {
   const { userRecord } = useAuth();
@@ -50,7 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const t = translations[activeLang];
   const isRtl = language === 'ar';
   const isManagement = ['Owner', 'owner', 'Admin', 'admin', 'Manager', 'manager'].includes(userRecord?.role || '');
-  const { user, role, switchRole } = useAuth();
+  const { user, role } = useAuth();
 
   const navItems = [
     { id: 'admin', label: 'Admin Panel', icon: ShieldCheck },
@@ -88,26 +87,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Role Switcher & Controls */}
+          {/* Controls */}
           <div className="flex items-center space-x-2 rtl:space-x-reverse">
             
-            {/* RBAC Role Selector */}
+            {/* RBAC Role Display */}
             <div className="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-700 text-xs text-slate-200">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <select
-                value={role}
-                onChange={(e) => switchRole(e.target.value as UserRole)}
-                className="bg-transparent font-bold text-emerald-400 focus:outline-none cursor-pointer capitalize"
-                title="Switch User Role for RBAC Testing"
-              >
-                <option value="Owner" className="bg-slate-900 text-white">👑 Role: Owner</option>
-                <option value="Admin" className="bg-slate-900 text-white">⚙️ Role: Admin</option>
-                <option value="Manager" className="bg-slate-900 text-white">👔 Role: Manager</option>
-                <option value="Cashier" className="bg-slate-900 text-white">💳 Role: Cashier (POS)</option>
-                <option value="Kitchen" className="bg-slate-900 text-white">👨‍🍳 Role: Kitchen</option>
-                <option value="Delivery Driver" className="bg-slate-900 text-white">🛵 Role: Driver</option>
-                <option value="Accountant" className="bg-slate-900 text-white">📊 Role: Accountant</option>
-              </select>
+              <span className="font-bold text-emerald-400 capitalize">
+                {role || 'User'}
+              </span>
             </div>
 
             {/* AI Assistant Quick Trigger Button */}
@@ -118,18 +106,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Bot className="w-4 h-4 animate-pulse" />
               <span className="hidden sm:inline">{t.aiAssistant}</span>
             </button>
-
-            {/* Seed Data Button (Demo Mode Only) */}
-            {import.meta.env.VITE_DEMO_MODE === 'true' && isManagement && (
-              <button
-                onClick={onSeedData}
-                className="hidden lg:flex text-xs px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl border border-slate-700 text-slate-300 hover:text-white transition items-center gap-1 cursor-pointer"
-                title="Populate demo data in Firestore"
-              >
-                <Database className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{t.seedData}</span>
-              </button>
-            )}
 
             {/* Language Picker */}
             <div className="flex items-center gap-1 bg-slate-800 px-2 py-1.5 rounded-xl border border-slate-700 text-xs">

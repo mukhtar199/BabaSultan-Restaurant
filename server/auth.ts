@@ -119,10 +119,12 @@ export async function authenticateTrustedUser(
       tokenEmail = verifyData.users[0].email || '';
     }
 
-    let role = 'Staff';
+    let role = '';
     let branchId = '';
-    let name = 'Authenticated Staff';
+    let name = '';
     let email = tokenEmail;
+    let foundProfile = false;
+    let userStatus = 'active';
 
     try {
       const db = getAdminDb();
@@ -130,10 +132,16 @@ export async function authenticateTrustedUser(
 
       if (userDocSnap.exists) {
         const userData = userDocSnap.data() || {};
-        role = userData.role || 'Staff';
+        userStatus = userData.status || 'active';
+        if (userStatus === 'suspended' || userStatus === 'blocked' || userStatus === 'inactive' || userStatus === 'pending') {
+          res.status(403).json({ error: `Account status is "${userStatus}". Access denied to protected ERP resources.` });
+          return null;
+        }
+        role = userData.role || '';
         branchId = normalizeCanonicalBranchId(userData.branchId || userData.branch || '');
-        name = userData.name || userData.displayName || name;
+        name = userData.name || userData.displayName || '';
         email = userData.email || email || tokenEmail;
+        foundProfile = true;
       }
     } catch (dbErr: any) {
       try {
@@ -146,14 +154,25 @@ export async function authenticateTrustedUser(
         if (userRes.ok) {
           const userDocJson = await userRes.json();
           const userData = firestoreDocToObj(userDocJson) || {};
-          role = userData.role || 'Staff';
+          userStatus = userData.status || 'active';
+          if (userStatus === 'suspended' || userStatus === 'blocked' || userStatus === 'inactive' || userStatus === 'pending') {
+            res.status(403).json({ error: `Account status is "${userStatus}". Access denied to protected ERP resources.` });
+            return null;
+          }
+          role = userData.role || '';
           branchId = normalizeCanonicalBranchId(userData.branchId || userData.branch || '');
-          name = userData.name || userData.displayName || name;
+          name = userData.name || userData.displayName || '';
           email = userData.email || email || tokenEmail;
+          foundProfile = true;
         }
       } catch (restErr) {
         console.warn('User profile lookup REST notice:', restErr);
       }
+    }
+
+    if (!foundProfile || !role) {
+      res.status(403).json({ error: 'Access denied: User profile not registered or missing active role assignment. Deny by default.' });
+      return null;
     }
 
     return { uid, role, branchId, name, email, idToken };

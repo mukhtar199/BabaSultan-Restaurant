@@ -28,8 +28,8 @@ export class AccountingController {
     return await this.repo.createAccount(data);
   }
 
-  async fetchJournalEntries(): Promise<JournalEntry[]> {
-    return await this.repo.getJournalEntries();
+  async fetchJournalEntries(branchId?: string): Promise<JournalEntry[]> {
+    return await this.repo.getJournalEntries(branchId);
   }
 
   async addJournalEntry(entry: Omit<JournalEntry, 'id' | 'createdAt' | 'entryNumber'>): Promise<JournalEntry> {
@@ -39,12 +39,12 @@ export class AccountingController {
     return await this.repo.createJournalEntry(entry);
   }
 
-  async fetchLedger(accountId?: string, startDate?: string, endDate?: string): Promise<LedgerEntry[]> {
-    return await this.repo.getLedger(accountId, startDate, endDate);
+  async fetchLedger(accountId?: string, startDate?: string, endDate?: string, branchId?: string): Promise<LedgerEntry[]> {
+    return await this.repo.getLedger(accountId, startDate, endDate, branchId);
   }
 
-  async fetchExpenses(): Promise<AccountingExpense[]> {
-    return await this.repo.getExpenses();
+  async fetchExpenses(branchId?: string): Promise<AccountingExpense[]> {
+    return await this.repo.getExpenses(branchId);
   }
 
   async recordExpense(data: Omit<AccountingExpense, 'id' | 'createdAt' | 'expenseNumber'>): Promise<AccountingExpense> {
@@ -54,8 +54,8 @@ export class AccountingController {
     return await this.repo.createExpense(data);
   }
 
-  async fetchRevenues(): Promise<AccountingRevenue[]> {
-    return await this.repo.getRevenues();
+  async fetchRevenues(branchId?: string): Promise<AccountingRevenue[]> {
+    return await this.repo.getRevenues(branchId);
   }
 
   async recordRevenue(data: Omit<AccountingRevenue, 'id' | 'createdAt' | 'revenueNumber'>): Promise<AccountingRevenue> {
@@ -65,8 +65,8 @@ export class AccountingController {
     return await this.repo.createRevenue(data);
   }
 
-  async fetchReceivables(): Promise<ReceivableItem[]> {
-    return await this.repo.getReceivables();
+  async fetchReceivables(branchId?: string): Promise<ReceivableItem[]> {
+    return await this.repo.getReceivables(branchId);
   }
 
   async addReceivable(data: Omit<ReceivableItem, 'id' | 'createdAt' | 'paidAmount' | 'remainingBalance' | 'status' | 'payments'>): Promise<ReceivableItem> {
@@ -80,8 +80,8 @@ export class AccountingController {
     await this.repo.recordARPayment(receivableId, payment);
   }
 
-  async fetchPayables(): Promise<PayableItem[]> {
-    return await this.repo.getPayables();
+  async fetchPayables(branchId?: string): Promise<PayableItem[]> {
+    return await this.repo.getPayables(branchId);
   }
 
   async addPayable(data: Omit<PayableItem, 'id' | 'createdAt' | 'paidAmount' | 'remainingBalance' | 'status' | 'payments'>): Promise<PayableItem> {
@@ -95,8 +95,8 @@ export class AccountingController {
     await this.repo.recordAPPayment(payableId, payment);
   }
 
-  async fetchCashRegisters(): Promise<CashRegister[]> {
-    return await this.repo.getCashRegisters();
+  async fetchCashRegisters(branchId?: string): Promise<CashRegister[]> {
+    return await this.repo.getCashRegisters(branchId);
   }
 
   async openRegister(registerName: string, branchName: string, openingBalance: number, openedBy: string, branchId?: string): Promise<CashRegister> {
@@ -122,15 +122,15 @@ export class AccountingController {
     await this.repo.transferFunds(fromAccountId, toAccountId, amount, reference, description);
   }
 
-  async fetchTaxes(): Promise<TaxConfig[]> {
-    return await this.repo.getTaxes();
+  async fetchTaxes(branchId?: string): Promise<TaxConfig[]> {
+    return await this.repo.getTaxes(branchId);
   }
 
   async addTax(data: Omit<TaxConfig, 'id'>): Promise<TaxConfig> {
     return await this.repo.createTax(data);
   }
 
-  async fetchFinancialStatements(startDate?: string, endDate?: string): Promise<FinancialStatements> {
-    return await this.repo.getFinancialStatements(startDate, endDate);
+  async fetchFinancialStatements(startDate?: string, endDate?: string, branchId?: string): Promise<FinancialStatements> {
+    return await this.repo.getFinancialStatements(startDate, endDate, branchId);
   }
 }

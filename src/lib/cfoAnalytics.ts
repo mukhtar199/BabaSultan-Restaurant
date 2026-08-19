@@ -249,8 +249,9 @@ export function calculateCFOAnalytics(data: CFODataPackage) {
 
   const cashFlow = (monthlyRevenue + totalBankDeposits) - (totalExpenses + totalBankWithdrawals + totalRefunds);
 
-  // Taxes
-  const estimatedVAT = netRevenue * 0.15; // 15% VAT
+  // Taxes: Authoritative recorded VAT from orders
+  const recordedVAT = orders.reduce((sum, o) => sum + (Number(o.tax) || 0), 0);
+  const estimatedVAT = recordedVAT;
   const estimatedCorporateTax = Math.max(0, netProfit) * 0.20; // 20% Tax on Net Profit
 
   // Inventory & Waste

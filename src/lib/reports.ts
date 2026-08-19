@@ -246,12 +246,16 @@ export function generateCPAReport(
       ]
     });
 
+    const vatRateDisplay = metrics.netRevenue > 0 && metrics.taxEstimatedVAT > 0
+      ? `${((metrics.taxEstimatedVAT / metrics.netRevenue) * 100).toFixed(0)}%`
+      : 'Authoritative VAT';
+
     sections.push({
       heading: 'Net Profit Before Tax',
       columns: ['Item', 'Amount ($)'],
       rows: [
         ['NET OPERATING PROFIT', `$${metrics.netProfit.toFixed(2)}`],
-        ['Estimated VAT / Sales Tax Payable (5%)', `$${metrics.taxEstimatedVAT.toFixed(2)}`],
+        [`Estimated VAT / Sales Tax Payable (${vatRateDisplay})`, `$${metrics.taxEstimatedVAT.toFixed(2)}`],
         ['Estimated Corporate Income Tax (15%)', `$${metrics.taxEstimatedCorporate.toFixed(2)}`]
       ]
     });
@@ -327,11 +331,15 @@ export function generateCPAReport(
     title = 'TAX LIABILITY & COMPLIANCE REPORT';
     subtitle = 'Estimated VAT & Corporate Income Tax Computations';
 
+    const vatRateReportDisplay = metrics.netRevenue > 0 && metrics.taxEstimatedVAT > 0
+      ? `${((metrics.taxEstimatedVAT / metrics.netRevenue) * 100).toFixed(0)}%`
+      : 'Authoritative VAT';
+
     sections.push({
       heading: 'Tax Calculations',
       columns: ['Tax Type', 'Tax Base Amount ($)', 'Rate', 'Tax Liability ($)'],
       rows: [
-        ['Value Added Tax (VAT)', `$${metrics.netRevenue.toFixed(2)}`, '5%', `$${metrics.taxEstimatedVAT.toFixed(2)}`],
+        ['Value Added Tax (VAT)', `$${metrics.netRevenue.toFixed(2)}`, vatRateReportDisplay, `$${metrics.taxEstimatedVAT.toFixed(2)}`],
         ['Corporate Net Income Tax', `$${metrics.netProfit.toFixed(2)}`, '15%', `$${metrics.taxEstimatedCorporate.toFixed(2)}`]
       ]
     });

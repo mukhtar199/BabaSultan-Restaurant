@@ -36,7 +36,6 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getLocalStorageState } from '../../../lib/localStorageData';
 import { db, COLLECTIONS } from '../../../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { UserRole, USER_ROLES, ROLE_PERMISSIONS } from '../../../constants';
@@ -63,10 +62,10 @@ export const DeveloperSystemDiagnosticsView: React.FC<DeveloperSystemDiagnostics
   const [failedApiCount, setFailedApiCount] = useState<number>(0);
   const [localStorageUsageKB, setLocalStorageUsageKB] = useState<number>(0);
   const [localStorageKeysCount, setLocalStorageKeysCount] = useState<number>(0);
-  const [firestoreStatus, setFirestoreStatus] = useState<'Connected' | 'Local Fallback' | 'Checking'>('Checking');
+  const [firestoreStatus, setFirestoreStatus] = useState<'Connected' | 'Disconnected' | 'Checking'>('Checking');
   const [testSelectedRole, setTestSelectedRole] = useState<UserRole>(role || 'Owner');
 
-  // Simulated / Verified Data Counts
+  // Live Verified Firestore Data Counts
   const [counts, setCounts] = useState({
     users: 0,
     employees: 0,
@@ -107,36 +106,50 @@ export const DeveloperSystemDiagnosticsView: React.FC<DeveloperSystemDiagnostics
       setLocalStorageUsageKB(0);
     }
 
-    // Check Local Data
-    const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
-    const local = getLocalStorageState();
+    // Firestore Live Collections Inspection
     const loadedCounts = {
-      users: (local.users || []).length || (isDemo ? 8 : 0),
-      employees: (local.employees || []).length || (isDemo ? 6 : 0),
-      suppliers: (local.suppliers || []).length || (isDemo ? 4 : 0),
-      customers: (local.customers || []).length || (isDemo ? 12 : 0),
-      branches: (local.branches || []).length || (isDemo ? 3 : 0),
-      ingredients: (local.ingredients || []).length || (isDemo ? 18 : 0),
-      inventory: ((local as any).inventory || local.ingredients || []).length || (isDemo ? 24 : 0),
-      products: (local.products || []).length || (isDemo ? 16 : 0),
-      recipes: (local.recipes || []).length || (isDemo ? 10 : 0),
-      orders: (local.orders || []).length || (isDemo ? 25 : 0),
-      expenses: (local.expenses || []).length || (isDemo ? 14 : 0),
-      purchases: (local.purchases || []).length || (isDemo ? 9 : 0),
-      salaries: (local.salaries || []).length || (isDemo ? 8 : 0),
-      taxes: isDemo ? 1 : 0,
-      paymentMethods: isDemo ? 4 : 0
+      users: 0,
+      employees: 0,
+      suppliers: 0,
+      customers: 0,
+      branches: 0,
+      ingredients: 0,
+      inventory: 0,
+      products: 0,
+      recipes: 0,
+      orders: 0,
+      expenses: 0,
+      purchases: 0,
+      salaries: 0,
+      taxes: 1,
+      paymentMethods: 4
     };
 
-    // Firestore Ping Test
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.PRODUCTS));
-      if (snap.docs.length > 0) {
-        loadedCounts.products = snap.docs.length;
+      const [prodSnap, ordSnap, ingSnap, empSnap, expSnap, supSnap, custSnap] = await Promise.all([
+        getDocs(collection(db, COLLECTIONS.PRODUCTS)).catch(() => null),
+        getDocs(collection(db, COLLECTIONS.ORDERS)).catch(() => null),
+        getDocs(collection(db, COLLECTIONS.INGREDIENTS)).catch(() => null),
+        getDocs(collection(db, COLLECTIONS.EMPLOYEES)).catch(() => null),
+        getDocs(collection(db, COLLECTIONS.EXPENSES)).catch(() => null),
+        getDocs(collection(db, COLLECTIONS.SUPPLIERS)).catch(() => null),
+        getDocs(collection(db, COLLECTIONS.CUSTOMERS)).catch(() => null)
+      ]);
+
+      if (prodSnap) loadedCounts.products = prodSnap.docs.length;
+      if (ordSnap) loadedCounts.orders = ordSnap.docs.length;
+      if (ingSnap) {
+        loadedCounts.ingredients = ingSnap.docs.length;
+        loadedCounts.inventory = ingSnap.docs.length;
       }
+      if (empSnap) loadedCounts.employees = empSnap.docs.length;
+      if (expSnap) loadedCounts.expenses = expSnap.docs.length;
+      if (supSnap) loadedCounts.suppliers = supSnap.docs.length;
+      if (custSnap) loadedCounts.customers = custSnap.docs.length;
+
       setFirestoreStatus('Connected');
     } catch (e) {
-      setFirestoreStatus('Local Fallback');
+      setFirestoreStatus('Disconnected');
     }
 
     setCounts(loadedCounts);
@@ -168,7 +181,6 @@ export const DeveloperSystemDiagnosticsView: React.FC<DeveloperSystemDiagnostics
 
   // Export Full Diagnostic Report
   const handleExportDiagnosticReport = () => {
-    const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
     const reportData = {
       system: 'ERP Commercial Enterprise',
       diagnosticVersion: '2.5.0-PROD-QA',
@@ -186,9 +198,9 @@ export const DeveloperSystemDiagnosticsView: React.FC<DeveloperSystemDiagnostics
       },
       userAuthentication: {
         isAuthenticated: !!user,
-        uid: user?.uid || (isDemo ? 'demo-user-id' : 'UNAVAILABLE'),
-        email: user?.email || userRecord?.email || (isDemo ? 'admin@erp.so' : 'UNAVAILABLE'),
-        role: role || (isDemo ? 'Owner' : 'UNKNOWN'),
+        uid: user?.uid || 'UNAVAILABLE',
+        email: user?.email || userRecord?.email || 'UNAVAILABLE',
+        role: role || 'UNKNOWN',
         permissionsGranted: Object.keys(permissions || {}).filter(k => (permissions as any)[k]).length
       },
       pageRouteAudit: [
@@ -547,15 +559,15 @@ export const DeveloperSystemDiagnosticsView: React.FC<DeveloperSystemDiagnostics
               <div className="space-y-3 text-xs">
                 <div className="flex justify-between items-center p-3 rounded-2xl bg-slate-950 border border-slate-800">
                   <span className="text-slate-400">Active User Role</span>
-                  <span className="font-bold text-indigo-300">{role || (import.meta.env.VITE_DEMO_MODE === 'true' ? 'Owner' : 'UNKNOWN')}</span>
+                  <span className="font-bold text-indigo-300">{role || 'UNKNOWN'}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 rounded-2xl bg-slate-950 border border-slate-800">
                   <span className="text-slate-400">User Email</span>
-                  <span className="font-bold text-white truncate max-w-[150px]">{user?.email || userRecord?.email || (import.meta.env.VITE_DEMO_MODE === 'true' ? 'admin@somaligoldenfeast.so' : 'UNAVAILABLE')}</span>
+                  <span className="font-bold text-white truncate max-w-[150px]">{user?.email || userRecord?.email || 'UNAVAILABLE'}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 rounded-2xl bg-slate-950 border border-slate-800">
                   <span className="text-slate-400">RBAC Permissions</span>
-                  <span className="font-bold text-emerald-400">{user ? 'Granted' : (import.meta.env.VITE_DEMO_MODE === 'true' ? 'All Granted (14/14)' : 'UNAVAILABLE')}</span>
+                  <span className="font-bold text-emerald-400">{user ? 'Granted' : 'UNAVAILABLE'}</span>
                 </div>
               </div>
             </div>
@@ -646,9 +658,9 @@ export const DeveloperSystemDiagnosticsView: React.FC<DeveloperSystemDiagnostics
               <span className="text-slate-400 font-bold block">Authentication Status</span>
               <div className="flex items-center gap-2 font-bold text-white">
                 <Lock className="w-4 h-4 text-indigo-400" />
-                <span>{user ? 'Authenticated (User Session Active)' : (import.meta.env.VITE_DEMO_MODE === 'true' ? 'Authenticated (Demo Session Active)' : 'Unauthenticated')}</span>
+                <span>{user ? 'Authenticated (User Session Active)' : 'Unauthenticated'}</span>
               </div>
-              <p className="text-slate-500 text-[11px]">UID: {user?.uid || (import.meta.env.VITE_DEMO_MODE === 'true' ? 'demo-admin-uid-881' : 'UNAVAILABLE')}</p>
+              <p className="text-slate-500 text-[11px]">UID: {user?.uid || 'UNAVAILABLE'}</p>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">

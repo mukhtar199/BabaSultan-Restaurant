@@ -71,10 +71,10 @@ export const recipeDict = {
       costPerMeal: 'Cost per Meal'
     },
     calculator: {
-      title: 'Interactive Food Cost & Profit Simulator',
-      subtitle: 'Simulate purchase price changes and see real-time impact on food cost % & profits',
-      simulatedPrice: 'Simulated Selling Price',
-      simulatedCost: 'Simulated Ingredient Cost',
+      title: 'What-If Scenario Cost & Profit Margin Analysis',
+      subtitle: 'Analyze potential ingredient inflation and selling price variations based on authoritative recipe data',
+      scenarioPrice: 'What-If Selling Price',
+      scenarioCost: 'Scenario Ingredient Cost',
       profitMargin: 'Profit Margin'
     },
     stockCount: {
@@ -197,10 +197,10 @@ export const recipeDict = {
       costPerMeal: 'التكلفة لكل وجبة'
     },
     calculator: {
-      title: 'محاكي تكاليف الطعام والأرباح التفاعلي',
-      subtitle: 'محاكاة تغيرات أسعار الشراء والبيع لمشاهدة تأثيرها على النسبة والربح مباشرة',
-      simulatedPrice: 'سعر البيع المحاكى',
-      simulatedCost: 'تكلفة المكونات المحاكاة',
+      title: 'تحليل سيناريو التكاليف وهامش الربح الافتراضي',
+      subtitle: 'تحليل أثر تغيرات أسعار الشراء والبيع على نسبة تكلفة الطعام وهامش الربح بناءً على البيانات الحقيقية',
+      scenarioPrice: 'سعر البيع الافتراضي (What-If)',
+      scenarioCost: 'تكلفة المكونات في السيناريو',
       profitMargin: 'هامش الربح'
     },
     stockCount: {
@@ -323,10 +323,10 @@ export const recipeDict = {
       costPerMeal: 'Qiimaha halkii Cunto'
     },
     calculator: {
-      title: 'Tijaabiyaha Qiimaha & Faa\'iidada Cuntada',
-      subtitle: 'Simulatinka isbaddalka qiimaha si aad u aragto saamaynta tooska ah',
-      simulatedPrice: 'Qiimaha Iibka Tijaabada ah',
-      simulatedCost: 'Qiimaha Walxaha Tijaabada ah',
+      title: 'Falanqaynta Xaaladda Qiimaha & Faa\'iidada Cuntada',
+      subtitle: 'Falanqaynta isbaddalka qiimaha suurtagalka ah ee ku salaysan xogta rasmiga ah',
+      scenarioPrice: 'Qiimaha Iibka ee Tijaabada (What-If)',
+      scenarioCost: 'Qiimaha Walxaha ee Tijaabada',
       profitMargin: 'Mugga Faa\'iidada'
     },
     stockCount: {

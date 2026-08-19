@@ -28,50 +28,6 @@ import {
 } from '../../domain/entities/accounting';
 import { IAccountingRepository } from '../../domain/repositories/IAccountingRepository';
 
-const DEFAULT_ACCOUNTS: Omit<Account, 'id' | 'createdAt' | 'balance'>[] = [
-  // Assets
-  { code: '1010', name: 'Cash on Hand (Register)', type: 'Asset', isSystem: true, status: 'Active', currency: 'USD', description: 'Petty cash and till balances' },
-  { code: '1020', name: 'Main Bank Account (Premier Bank)', type: 'Asset', isSystem: true, status: 'Active', currency: 'USD', description: 'Primary operational bank account' },
-  { code: '1100', name: 'Accounts Receivable', type: 'Asset', isSystem: true, status: 'Active', currency: 'USD', description: 'Customer pending balances' },
-  { code: '1200', name: 'Inventory Asset', type: 'Asset', isSystem: true, status: 'Active', currency: 'USD', description: 'Raw food & ingredient stock value' },
-
-  // Liabilities
-  { code: '2010', name: 'Accounts Payable', type: 'Liability', isSystem: true, status: 'Active', currency: 'USD', description: 'Supplier pending bills' },
-  { code: '2020', name: 'Sales Tax Payable', type: 'Liability', isSystem: true, status: 'Active', currency: 'USD', description: 'Collected sales tax owed to govt' },
-  { code: '2030', name: 'Salaries Payable', type: 'Liability', isSystem: true, status: 'Active', currency: 'USD', description: 'Accrued employee wages' },
-
-  // Equity
-  { code: '3010', name: "Owner's Equity", type: 'Equity', isSystem: true, status: 'Active', currency: 'USD', description: 'Owner capital investment' },
-  { code: '3020', name: 'Retained Earnings', type: 'Equity', isSystem: true, status: 'Active', currency: 'USD', description: 'Accumulated business profits' },
-
-  // Revenue
-  { code: '4010', name: 'Restaurant Sales Revenue', type: 'Revenue', isSystem: true, status: 'Active', currency: 'USD', description: 'Dine-in and takeaway sales' },
-  { code: '4020', name: 'Catering Revenue', type: 'Revenue', isSystem: true, status: 'Active', currency: 'USD', description: 'Event catering revenue' },
-  { code: '4030', name: 'Delivery Service Revenue', type: 'Revenue', isSystem: true, status: 'Active', currency: 'USD', description: 'Delivery fees collected' },
-
-  // COGS
-  { code: '5010', name: 'Food & Beverage COGS', type: 'COGS', isSystem: true, status: 'Active', currency: 'USD', description: 'Direct food raw material costs' },
-  { code: '5020', name: 'Packaging COGS', type: 'COGS', isSystem: true, status: 'Active', currency: 'USD', description: 'Takeaway boxes & consumables' },
-
-  // Expenses
-  { code: '6010', name: 'Rent Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'Facility lease and rental fees' },
-  { code: '6020', name: 'Salaries & Wages Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'Staff payroll & bonuses' },
-  { code: '6030', name: 'Electricity Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'Electricity grid and generator diesel' },
-  { code: '6040', name: 'Water Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'Water utility bills' },
-  { code: '6050', name: 'Internet & Telecom Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'Fiber internet and mobile POS data' },
-  { code: '6060', name: 'Gas & Cooking Fuel Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'LPG gas cylinders for kitchen' },
-  { code: '6070', name: 'Marketing Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'Social media & flyer promotion' },
-  { code: '6080', name: 'Maintenance Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'Kitchen equipment & interior repairs' },
-  { code: '6090', name: 'Transportation Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'Fuel & transport costs' },
-  { code: '6100', name: 'Miscellaneous Expense', type: 'Expense', isSystem: true, status: 'Active', currency: 'USD', description: 'General operational overheads' }
-];
-
-const DEFAULT_TAXES: Omit<TaxConfig, 'id'>[] = [
-  { name: 'VAT 5%', code: 'VAT5', rate: 5, type: 'Both', isDefault: true, status: 'Active' },
-  { name: 'Sales Tax 10%', code: 'ST10', rate: 10, type: 'Sales', isDefault: false, status: 'Active' },
-  { name: 'Zero Rated 0%', code: 'ZERO0', rate: 0, type: 'Both', isDefault: false, status: 'Active' }
-];
-
 async function authFetch(url: string, options: RequestInit = {}) {
   const token = await getAuthToken();
   const res = await fetch(url, {
@@ -95,28 +51,7 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
     try {
       const snap = await getDocs(collection(db, COLLECTIONS.ACCOUNTS));
       if (snap.empty) {
-        // Seed via backend API or return default account structures
-        const seeded: Account[] = [];
-        for (const item of DEFAULT_ACCOUNTS) {
-          try {
-            const res = await authFetch('/api/accounting/accounts', {
-              method: 'POST',
-              body: JSON.stringify({
-                ...item,
-                balance: 0
-              })
-            });
-            seeded.push(res);
-          } catch {
-            seeded.push({
-              id: `def-${item.code}`,
-              ...item,
-              balance: 0,
-              createdAt: new Date().toISOString()
-            });
-          }
-        }
-        return seeded;
+        return [];
       }
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as Account));
     } catch (err: any) {
@@ -140,9 +75,12 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
   }
 
   // --- JOURNAL ENTRIES & LEDGER ---
-  async getJournalEntries(): Promise<JournalEntry[]> {
+  async getJournalEntries(branchId?: string): Promise<JournalEntry[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.JOURNAL_ENTRIES));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.JOURNAL_ENTRIES), where('branchId', '==', branchId))
+        : query(collection(db, COLLECTIONS.JOURNAL_ENTRIES));
+      const snap = await getDocs(q);
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalEntry));
     } catch (err: any) {
       console.error('Error in getJournalEntries:', err?.message || err);
@@ -157,9 +95,12 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
     });
   }
 
-  async getLedger(accountId?: string, startDate?: string, endDate?: string): Promise<LedgerEntry[]> {
+  async getLedger(accountId?: string, startDate?: string, endDate?: string, branchId?: string): Promise<LedgerEntry[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.LEDGER));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.LEDGER), where('branchId', '==', branchId))
+        : query(collection(db, COLLECTIONS.LEDGER));
+      const snap = await getDocs(q);
       let entries = snap.docs.map(d => ({ id: d.id, ...d.data() } as LedgerEntry));
 
       if (accountId) {
@@ -180,9 +121,12 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
   }
 
   // --- EXPENSES ---
-  async getExpenses(): Promise<AccountingExpense[]> {
+  async getExpenses(branchId?: string): Promise<AccountingExpense[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.EXPENSES));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.EXPENSES), where('branchId', '==', branchId))
+        : query(collection(db, COLLECTIONS.EXPENSES));
+      const snap = await getDocs(q);
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as AccountingExpense));
     } catch (err: any) {
       console.error('Error in getExpenses:', err?.message || err);
@@ -205,9 +149,12 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
   }
 
   // --- REVENUES ---
-  async getRevenues(): Promise<AccountingRevenue[]> {
+  async getRevenues(branchId?: string): Promise<AccountingRevenue[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.REVENUES));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.REVENUES), where('branchId', '==', branchId))
+        : query(collection(db, COLLECTIONS.REVENUES));
+      const snap = await getDocs(q);
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as AccountingRevenue));
     } catch (err: any) {
       console.error('Error in getRevenues:', err?.message || err);
@@ -223,9 +170,12 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
   }
 
   // --- ACCOUNTS RECEIVABLE ---
-  async getReceivables(): Promise<ReceivableItem[]> {
+  async getReceivables(branchId?: string): Promise<ReceivableItem[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.RECEIVABLES));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.RECEIVABLES), where('branchId', '==', branchId))
+        : query(collection(db, COLLECTIONS.RECEIVABLES));
+      const snap = await getDocs(q);
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as ReceivableItem));
     } catch (err: any) {
       console.error('Error in getReceivables:', err?.message || err);
@@ -248,9 +198,12 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
   }
 
   // --- ACCOUNTS PAYABLE ---
-  async getPayables(): Promise<PayableItem[]> {
+  async getPayables(branchId?: string): Promise<PayableItem[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.PAYABLES));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.PAYABLES), where('branchId', '==', branchId))
+        : query(collection(db, COLLECTIONS.PAYABLES));
+      const snap = await getDocs(q);
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as PayableItem));
     } catch (err: any) {
       console.error('Error in getPayables:', err?.message || err);
@@ -273,9 +226,12 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
   }
 
   // --- CASH & BANK ---
-  async getCashRegisters(): Promise<CashRegister[]> {
+  async getCashRegisters(branchId?: string): Promise<CashRegister[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.CASH_REGISTERS));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.CASH_REGISTERS), where('branchId', '==', branchId))
+        : query(collection(db, COLLECTIONS.CASH_REGISTERS));
+      const snap = await getDocs(q);
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as CashRegister));
     } catch (err: any) {
       console.error('Error in getCashRegisters:', err?.message || err);
@@ -301,24 +257,7 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
     try {
       const snap = await getDocs(collection(db, COLLECTIONS.BANK_ACCOUNTS));
       if (snap.empty) {
-        const item = {
-          bankName: 'Premier Bank Corporate',
-          accountNumber: '0100-889922-01',
-          accountName: 'Enterprise Restaurant Ops',
-          branchName: 'Main Branch',
-          currentBalance: 0,
-          currency: 'USD',
-          status: 'Active' as const
-        };
-        try {
-          const res = await authFetch('/api/accounting/bank-accounts', {
-            method: 'POST',
-            body: JSON.stringify(item)
-          });
-          return [res];
-        } catch {
-          return [{ id: 'def-bank-1', ...item, createdAt: new Date().toISOString() }];
-        }
+        return [];
       }
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as BankAccount));
     } catch (err: any) {
@@ -334,9 +273,12 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
     });
   }
 
-  async getBankTransactions(bankAccountId?: string): Promise<BankTransaction[]> {
+  async getBankTransactions(bankAccountId?: string, branchId?: string): Promise<BankTransaction[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.BANK_TRANSACTIONS));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.BANK_TRANSACTIONS), where('branchId', '==', branchId))
+        : query(collection(db, COLLECTIONS.BANK_TRANSACTIONS));
+      const snap = await getDocs(q);
       let items = snap.docs.map(d => ({ id: d.id, ...d.data() } as BankTransaction));
       if (bankAccountId) {
         items = items.filter(t => t.bankAccountId === bankAccountId);
@@ -379,23 +321,14 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
   }
 
   // --- TAX ---
-  async getTaxes(): Promise<TaxConfig[]> {
+  async getTaxes(branchId?: string): Promise<TaxConfig[]> {
     try {
-      const snap = await getDocs(collection(db, COLLECTIONS.TAXES));
+      const q = branchId && branchId !== 'all'
+        ? query(collection(db, COLLECTIONS.TAXES), where('branchId', '==', branchId))
+        : query(collection(db, COLLECTIONS.TAXES));
+      const snap = await getDocs(q);
       if (snap.empty) {
-        const seeded: TaxConfig[] = [];
-        for (const item of DEFAULT_TAXES) {
-          try {
-            const res = await authFetch('/api/accounting/taxes', {
-              method: 'POST',
-              body: JSON.stringify(item)
-            });
-            seeded.push(res);
-          } catch {
-            seeded.push({ id: `def-tax-${item.code}`, ...item });
-          }
-        }
-        return seeded;
+        return [];
       }
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as TaxConfig));
     } catch (err: any) {
@@ -419,7 +352,7 @@ export class AccountingRepositoryImpl implements IAccountingRepository {
   }
 
   // --- FINANCIAL STATEMENTS ---
-  async getFinancialStatements(startDate?: string, endDate?: string): Promise<FinancialStatements> {
+  async getFinancialStatements(startDate?: string, endDate?: string, branchId?: string): Promise<FinancialStatements> {
     const accounts = await this.getAccounts();
 
     // Group accounts by type

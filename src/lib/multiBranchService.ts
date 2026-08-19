@@ -11,7 +11,6 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, COLLECTIONS } from './firebase';
-import { SYSTEM_CONFIG } from '../constants';
 import { 
   Branch, 
   BranchStatus, 
@@ -26,97 +25,6 @@ import {
   Product, 
   Customer 
 } from '../types';
-
-// Initial Default Branches Seed Data if empty
-export const DEFAULT_BRANCHES: Branch[] = [
-  {
-    id: 'branch_hq_01',
-    name: 'Headquarters - Mogadishu Main',
-    code: 'HQ-MOG-01',
-    logo: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=200',
-    address: 'Makkah Al Mukarramah Road, K4 Junction',
-    city: 'Mogadishu',
-    country: 'Somalia',
-    gpsLocation: '2.046937, 45.318161',
-    phone: '+252 61 500 0000',
-    email: 'hq@restaurant.so',
-    workingHours: '07:00 AM - 11:30 PM',
-    timeZone: 'Africa/Mogadishu (UTC+3)',
-    currency: 'USD',
-    taxRate: SYSTEM_CONFIG.DEFAULT_TAX_RATE_PERCENT,
-    taxId: 'SO-TAX-99881',
-    status: 'active',
-    hierarchyType: 'head_office',
-    isHeadOffice: true,
-    managerName: 'Abdirahman Mohamed',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'branch_hargeisa_01',
-    name: 'Hargeisa Flagship Branch',
-    code: 'BR-HAR-02',
-    logo: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=200',
-    address: 'Independence Avenue, City Center',
-    city: 'Hargeisa',
-    country: 'Somaliland',
-    gpsLocation: '9.562389, 44.064972',
-    phone: '+252 63 400 1122',
-    email: 'hargeisa@restaurant.so',
-    workingHours: '08:00 AM - 11:00 PM',
-    timeZone: 'Africa/Mogadishu (UTC+3)',
-    currency: 'USD',
-    taxRate: 5.0,
-    taxId: 'SL-VAT-44512',
-    status: 'active',
-    hierarchyType: 'flagship',
-    isHeadOffice: false,
-    managerName: 'Fatima Ahmed',
-    parentBranchId: 'branch_hq_01',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'branch_kismayo_01',
-    name: 'Kismayo Coastal Express',
-    code: 'BR-KIS-03',
-    logo: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&q=80&w=200',
-    address: 'Beachfront Boulevard, Port District',
-    city: 'Kismayo',
-    country: 'Somalia',
-    gpsLocation: '-0.358178, 42.545367',
-    phone: '+252 61 222 3344',
-    email: 'kismayo@restaurant.so',
-    workingHours: '08:00 AM - 10:00 PM',
-    timeZone: 'Africa/Mogadishu (UTC+3)',
-    currency: 'USD',
-    taxRate: 5.0,
-    taxId: 'SO-TAX-33211',
-    status: 'active',
-    hierarchyType: 'express',
-    isHeadOffice: false,
-    managerName: 'Hassan Nur',
-    parentBranchId: 'branch_hq_01',
-    createdAt: new Date().toISOString()
-  }
-];
-
-// Helper to seed initial branches if Firestore is empty
-export async function seedInitialBranches(userRole?: string) {
-  if (userRole && !['Owner', 'owner', 'Admin', 'admin', 'Manager', 'manager'].includes(userRole)) {
-    return;
-  }
-  try {
-    const snap = await getDocs(collection(db, COLLECTIONS.BRANCHES));
-    if (snap.empty) {
-      const batch = writeBatch(db);
-      for (const b of DEFAULT_BRANCHES) {
-        batch.set(doc(db, COLLECTIONS.BRANCHES, b.id), b);
-      }
-      await batch.commit();
-    }
-  } catch (err: any) {
-    console.warn('Branch seeding skipped:', err?.message || err);
-  }
-}
 
 // Branch Firestore Actions
 export async function createBranch(branchData: Omit<Branch, 'id' | 'createdAt'>): Promise<string> {

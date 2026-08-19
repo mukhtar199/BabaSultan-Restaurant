@@ -24,8 +24,7 @@ import {
   createBranchTransfer, 
   approveBranchTransfer, 
   rejectBranchTransfer, 
-  calculateConsolidatedBranchAnalytics, 
-  seedInitialBranches 
+  calculateConsolidatedBranchAnalytics
 } from '../../../lib/multiBranchService';
 import { exportToExcel, printReportWindow } from '../../../lib/reports';
 import {
