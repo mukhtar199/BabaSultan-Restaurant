@@ -72,22 +72,29 @@ function isOriginAllowed(origin?: string): boolean {
   try {
     const parsed = new URL(origin);
     const host = parsed.hostname.toLowerCase();
+    
+    // Strict match for production Vercel frontend
+    if (origin === 'https://baba-sultan-restaurant.vercel.app' || host === 'baba-sultan-restaurant.vercel.app') {
+      return true;
+    }
+    
     // Allow local development and test environments
     if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') {
       return true;
     }
-    // Allow Google Cloud Run, Firebase Hosting, Google AI Studio, and Vercel production domains
+    
+    // Allow Vercel preview deployments, Google Cloud Run, Firebase Hosting, and Google AI Studio
     if (
+      host.endsWith('.vercel.app') ||
       host.endsWith('.run.app') ||
       host.endsWith('.web.app') ||
       host.endsWith('.firebaseapp.com') ||
       host.endsWith('.aistudio.google.com') ||
-      host.endsWith('.google.com') ||
-      host.endsWith('.vercel.app') ||
-      host === 'baba-sultan-restaurant.vercel.app'
+      host.endsWith('.google.com')
     ) {
       return true;
     }
+    
     // Allow explicitly configured application domains via environment variables
     const envOrigins = [
       process.env.FRONTEND_URL,
@@ -119,17 +126,19 @@ app.use((req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
   const origin = req.headers.origin;
-  if (origin && isOriginAllowed(origin)) {
+  const allowed = isOriginAllowed(origin);
+
+  if (origin && allowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key, X-Idempotency-Key, X-Requested-With');
+    res.setHeader('Access-Control-Max-Age', '86400');
     res.setHeader('Vary', 'Origin');
   }
 
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Idempotency-Key, X-Idempotency-Key');
-
   if (req.method === 'OPTIONS') {
-    if (origin && !isOriginAllowed(origin)) {
+    if (origin && !allowed) {
       return res.status(403).json({ error: 'CORS policy violation: Origin not allowed.' });
     }
     return res.sendStatus(204);
