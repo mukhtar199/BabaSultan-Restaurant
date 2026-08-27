@@ -64,7 +64,7 @@ import {
 dotenv.config();
 
 export const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // P3-01: Production Security Headers & Strict CORS Allowlist Middleware
 function isOriginAllowed(origin?: string): boolean {
