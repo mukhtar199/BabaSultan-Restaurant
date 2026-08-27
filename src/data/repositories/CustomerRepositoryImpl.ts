@@ -525,9 +525,10 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
   async getAnalyticsData(): Promise<CustomerAnalyticsData> {
     const customers = await this.fetchCustomers();
     const wallets = await this.fetchCustomerWallets();
+    const pointsList = await this.fetchCustomerPointsList();
 
     const totalCustomers = customers.length;
-    const totalSpending = customers.reduce((sum, c) => sum + (c.totalSpending || c.totalSpent || 0), 0);
+    const totalSpending = customers.reduce((sum, c) => sum + (c.totalSpending || c.totalSpent || (c as any).orderSummary?.totalSpent || 0), 0);
     const avgSpendingPerCustomer = totalCustomers > 0 ? totalSpending / totalCustomers : 0;
     const totalWalletBalance = wallets.reduce((sum, w) => sum + (w.balance || 0), 0);
 
@@ -537,11 +538,26 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
 
     // Top 5 customers by spending
     const topCustomers = [...customers]
-      .sort((a, b) => (b.totalSpending || b.totalSpent || 0) - (a.totalSpending || a.totalSpent || 0))
+      .sort((a, b) => (b.totalSpending || b.totalSpent || (b as any).orderSummary?.totalSpent || 0) - (a.totalSpending || a.totalSpent || (a as any).orderSummary?.totalSpent || 0))
       .slice(0, 5);
 
-    const vipCount = customers.filter(c => c.status === 'vip').length;
+    const vipCount = customers.filter(c => c.status === 'vip' || c.membershipLevel === 'VIP').length;
     const blockedCount = customers.filter(c => c.status === 'blocked').length;
+
+    // Real loyalty points aggregation
+    const totalLoyaltyPointsIssued = pointsList.reduce((sum, p) => sum + ((p as any).totalEarned || (p as any).points || 0), 0);
+    const totalLoyaltyPointsRedeemed = pointsList.reduce((sum, p) => sum + ((p as any).totalRedeemed || 0), 0);
+
+    // New customers this month based on real registration dates
+    const currentMonthPrefix = new Date().toISOString().substring(0, 7);
+    const newCustomersThisMonth = customers.filter(c => c.createdAt && c.createdAt.startsWith(currentMonthPrefix)).length;
+
+    // Real membership level distribution
+    const bronzeCount = customers.filter(c => !c.membershipLevel || c.membershipLevel === 'Bronze').length;
+    const silverCount = customers.filter(c => c.membershipLevel === 'Silver').length;
+    const goldCount = customers.filter(c => c.membershipLevel === 'Gold').length;
+    const platinumCount = customers.filter(c => c.membershipLevel === 'Platinum').length;
+    const vipLevelCount = customers.filter(c => c.membershipLevel === 'VIP').length;
 
     return {
       totalCustomers,
@@ -549,12 +565,12 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
       vipCustomers: vipCount,
       blockedCustomers: blockedCount,
       churnedCustomers: Math.max(0, totalCustomers - activeCount),
-      newCustomersThisMonth: Math.min(totalCustomers, 12),
+      newCustomersThisMonth,
       totalWalletBalance,
-      totalLoyaltyPointsIssued: customers.length * 250,
-      totalLoyaltyPointsRedeemed: customers.length * 80,
-      averageCustomerLifetimeValue: avgSpendingPerCustomer * 2.4,
-      avgCustomerLifetimeValue: avgSpendingPerCustomer * 2.4,
+      totalLoyaltyPointsIssued,
+      totalLoyaltyPointsRedeemed,
+      averageCustomerLifetimeValue: avgSpendingPerCustomer,
+      avgCustomerLifetimeValue: avgSpendingPerCustomer,
       customerRetentionRate: retentionRate,
       retentionRate,
       customerChurnRate: churnRate,
@@ -562,21 +578,18 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
       topCustomersBySpending: topCustomers,
       topCustomers,
       membershipLevelDistribution: {
-        Bronze: customers.filter(c => c.membershipLevel === 'Bronze').length,
-        Silver: customers.filter(c => c.membershipLevel === 'Silver').length,
-        Gold: customers.filter(c => c.membershipLevel === 'Gold').length,
-        Platinum: customers.filter(c => c.membershipLevel === 'Platinum').length,
-        VIP: customers.filter(c => c.membershipLevel === 'VIP').length
+        Bronze: bronzeCount,
+        Silver: silverCount,
+        Gold: goldCount,
+        Platinum: platinumCount,
+        VIP: vipLevelCount
       },
-      customerGrowthTrend: [
-        { month: 'Jan', newCustomers: 12, totalCustomers: 12 },
-        { month: 'Feb', newCustomers: 18, totalCustomers: 30 },
-        { month: 'Mar', newCustomers: 25, totalCustomers: 55 }
-      ],
-      spendingCategoryDistribution: [
-        { categoryName: 'Food & Meals', totalAmount: totalSpending * 0.7, percentage: 70 },
-        { categoryName: 'Beverages', totalAmount: totalSpending * 0.3, percentage: 30 }
-      ]
+      customerGrowthTrend: totalCustomers > 0 ? [
+        { month: 'Total', newCustomers: newCustomersThisMonth, totalCustomers }
+      ] : [],
+      spendingCategoryDistribution: totalSpending > 0 ? [
+        { categoryName: 'Food & Dining', totalAmount: totalSpending, percentage: 100 }
+      ] : []
     };
   }
 }

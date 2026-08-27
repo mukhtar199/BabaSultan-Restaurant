@@ -165,6 +165,7 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
     minOrderAmount: number;
     estimatedTimeMinutes: number;
     isActive: boolean;
+    branchId: string;
   }>({
     name: '',
     code: '',
@@ -173,7 +174,8 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
     baseDeliveryFee: 3.00,
     minOrderAmount: 15.00,
     estimatedTimeMinutes: 30,
-    isActive: true
+    isActive: true,
+    branchId: ''
   });
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -346,11 +348,22 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
       }
     );
 
+    const zonesQuery = isBranchScoped && userBranch
+      ? query(collection(db, COLLECTIONS.DELIVERY_ZONES), where('branchId', '==', userBranch))
+      : query(collection(db, COLLECTIONS.DELIVERY_ZONES));
+
     const unsubZones = onSnapshot(
-      query(collection(db, COLLECTIONS.DELIVERY_ZONES)),
+      zonesQuery,
       (snap) => {
         const list: DeliveryZone[] = [];
-        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as DeliveryZone));
+        snap.forEach((d) => {
+          const data = d.data();
+          const canonBranch = getCanonicalBranchId(data.branchId || data.branch || userBranch || 'branch_hq_01');
+          if (isBranchScoped && userBranch && !areBranchesMatching(canonBranch, userBranch)) {
+            return;
+          }
+          list.push({ id: d.id, ...data, branchId: canonBranch } as DeliveryZone);
+        });
         setZones(list);
       },
       (err) => {
@@ -447,11 +460,41 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
   const handleSaveZone = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const canonBranch = getCanonicalBranchId(zoneForm.branchId || userRecord?.branchId || (userRecord as any)?.branch);
+      if (!canonBranch) {
+        alert('Unable to determine your branch. Please reload your account profile or contact an administrator.');
+        return;
+      }
+
+      if (!isHqUser) {
+        const userBranch = getCanonicalBranchId(userRecord?.branchId || (userRecord as any)?.branch);
+        if (!userBranch || !areBranchesMatching(canonBranch, userBranch)) {
+          alert('Cross-branch operation rejected: You can only create or manage delivery zones for your assigned branch.');
+          return;
+        }
+      }
+
+      const rawFee = typeof zoneForm.baseDeliveryFee === 'number' ? zoneForm.baseDeliveryFee : parseFloat(String(zoneForm.baseDeliveryFee));
+      const validatedFee = Number.isFinite(rawFee) && rawFee >= 0 ? rawFee : 0;
+
+      const payload = {
+        name: zoneForm.name.trim(),
+        code: zoneForm.code.trim() || `Z-MOG-0${zones.length + 1}`,
+        city: zoneForm.city.trim() || 'Mogadishu',
+        coverageRadiusKm: Number(zoneForm.coverageRadiusKm) || 5,
+        baseDeliveryFee: validatedFee,
+        minOrderAmount: Number(zoneForm.minOrderAmount) || 0,
+        estimatedTimeMinutes: Number(zoneForm.estimatedTimeMinutes) || 25,
+        isActive: Boolean(zoneForm.isActive),
+        branchId: canonBranch,
+        branchName: getBranchDisplayName(canonBranch)
+      };
+
       if (editingZone) {
-        await updateDeliveryZone(editingZone.id, zoneForm);
+        await updateDeliveryZone(editingZone.id, payload);
         showToast(`Zone "${zoneForm.name}" updated.`);
       } else {
-        await createDeliveryZone(zoneForm);
+        await createDeliveryZone(payload);
         showToast(`New Delivery Zone "${zoneForm.name}" created.`);
       }
       setShowZoneModal(false);
@@ -463,15 +506,19 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
 
   const openEditZone = (z: DeliveryZone) => {
     setEditingZone(z);
+    const rawBranch = z.branchId || userRecord?.branchId || (userRecord as any)?.branch;
+    const canonBranch = getCanonicalBranchId(rawBranch || (isHqUser ? 'branch_hq_01' : ''));
+    const rawFee = typeof z.baseDeliveryFee === 'number' ? z.baseDeliveryFee : (typeof (z as any).deliveryFee === 'number' ? (z as any).deliveryFee : 0);
     setZoneForm({
-      name: z.name,
-      code: z.code,
-      city: z.city,
-      coverageRadiusKm: z.coverageRadiusKm,
-      baseDeliveryFee: z.baseDeliveryFee,
-      minOrderAmount: z.minOrderAmount,
-      estimatedTimeMinutes: z.estimatedTimeMinutes,
-      isActive: z.isActive
+      name: z.name || '',
+      code: z.code || '',
+      city: z.city || 'Mogadishu',
+      coverageRadiusKm: typeof z.coverageRadiusKm === 'number' ? z.coverageRadiusKm : 5,
+      baseDeliveryFee: Number.isFinite(rawFee) && rawFee >= 0 ? rawFee : 0,
+      minOrderAmount: typeof z.minOrderAmount === 'number' ? z.minOrderAmount : 15.00,
+      estimatedTimeMinutes: typeof z.estimatedTimeMinutes === 'number' ? z.estimatedTimeMinutes : 30,
+      isActive: z.isActive !== false,
+      branchId: canonBranch
     });
     setShowZoneModal(true);
   };
@@ -687,6 +734,13 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
 
                 <button
                   onClick={() => {
+                    const rawBranch = userRecord?.branchId || (userRecord as any)?.branch;
+                    const userBranch = getCanonicalBranchId(rawBranch);
+                    if (!isHqUser && !userBranch) {
+                      alert('Unable to determine your branch. Please reload your account profile or contact an administrator.');
+                      return;
+                    }
+                    const defaultBranch = isHqUser ? (userBranch || 'branch_hq_01') : userBranch;
                     setEditingZone(null);
                     setZoneForm({
                       name: '',
@@ -696,7 +750,8 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
                       baseDeliveryFee: 3.00,
                       minOrderAmount: 15.00,
                       estimatedTimeMinutes: 30,
-                      isActive: true
+                      isActive: true,
+                      branchId: defaultBranch
                     });
                     setShowZoneModal(true);
                   }}
@@ -1162,7 +1217,7 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
                   <div className="bg-slate-950 p-2 rounded-xl">
                     <span className="text-[9px] text-slate-400 block">Rating</span>
                     <span className="font-extrabold text-amber-400 flex items-center justify-center gap-0.5 mt-0.5">
-                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {drv.rating || 4.8}
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {drv.rating ? drv.rating.toFixed(1) : 'N/A'}
                     </span>
                   </div>
 
@@ -1222,6 +1277,10 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
 
                 <h4 className="font-extrabold text-white text-base">{z.name}</h4>
                 <p className="text-xs text-slate-400">{z.city} • Radius: {z.coverageRadiusKm} km</p>
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                  <Building2 className="w-3 h-3 text-slate-400" />
+                  <span>{z.branchName || getBranchDisplayName(z.branchId)}</span>
+                </div>
 
                 <div className="space-y-2 pt-2 border-t border-slate-800 text-xs">
                   <div className="flex justify-between">
@@ -1459,13 +1518,57 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-slate-400 font-bold mb-1">Zone Code *</label>
+                  <input
+                    type="text"
+                    required
+                    value={zoneForm.code}
+                    onChange={(e) => setZoneForm({ ...zoneForm, code: e.target.value })}
+                    placeholder="e.g. Z-MOG-01"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">City *</label>
+                  <input
+                    type="text"
+                    required
+                    value={zoneForm.city}
+                    onChange={(e) => setZoneForm({ ...zoneForm, city: e.target.value })}
+                    placeholder="e.g. Mogadishu"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Assigned Branch *</label>
+                <select
+                  value={zoneForm.branchId}
+                  onChange={(e) => setZoneForm({ ...zoneForm, branchId: e.target.value })}
+                  disabled={!isHqUser}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 text-white font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <option value="branch_hq_01">Headquarters - Mogadishu Main (branch_hq_01)</option>
+                  <option value="branch_hargeisa_01">Hargeisa Flagship Branch (branch_hargeisa_01)</option>
+                  <option value="branch_kismayo_01">Kismayo Coastal Express (branch_kismayo_01)</option>
+                </select>
+                {!isHqUser && (
+                  <p className="text-[10px] text-slate-500 mt-1">Locked to your authenticated branch ({getBranchDisplayName(zoneForm.branchId)}).</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-slate-400 font-bold mb-1">Base Delivery Fee ($)</label>
                   <input
                     type="number"
                     step="0.5"
+                    min="0"
                     required
                     value={zoneForm.baseDeliveryFee}
-                    onChange={(e) => setZoneForm({ ...zoneForm, baseDeliveryFee: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setZoneForm({ ...zoneForm, baseDeliveryFee: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 text-white"
                   />
                 </div>
@@ -1475,8 +1578,37 @@ export const DeliveryManagementView: React.FC<DeliveryManagementViewProps> = ({
                   <input
                     type="number"
                     required
+                    min="1"
                     value={zoneForm.estimatedTimeMinutes}
                     onChange={(e) => setZoneForm({ ...zoneForm, estimatedTimeMinutes: parseInt(e.target.value) || 25 })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">Coverage Radius (km)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    required
+                    value={zoneForm.coverageRadiusKm}
+                    onChange={(e) => setZoneForm({ ...zoneForm, coverageRadiusKm: parseFloat(e.target.value) || 5 })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">Min Order Amount ($)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    required
+                    value={zoneForm.minOrderAmount}
+                    onChange={(e) => setZoneForm({ ...zoneForm, minOrderAmount: parseFloat(e.target.value) || 0 })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-3.5 py-2 text-white"
                   />
                 </div>

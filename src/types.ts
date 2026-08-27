@@ -802,6 +802,8 @@ export interface DeliveryZone {
   city: string;
   coverageRadiusKm: number;
   baseDeliveryFee: number;
+  deliveryFee?: number;
+  deliveryFeeEnabled?: boolean;
   minOrderAmount: number;
   estimatedTimeMinutes: number;
   isActive: boolean;

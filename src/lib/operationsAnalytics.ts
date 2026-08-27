@@ -16,94 +16,73 @@ import {
 import { getMogadishuDateString } from './dateUtils';
 
 export interface OperationsKPIs {
-  // Orders Pipeline
-  totalNewOrders: number;
   totalPreparingOrders: number;
-  totalReadyOrders: number;
-  totalDeliveredOrders: number;
-  totalCancelledOrders: number;
   delayedOrdersCount: number;
-  avgPreparationTimeMinutes: number;
-  targetPrepTimeMinutes: number; // e.g. 15 min
-
-  // Kitchen Workload
   kitchenStatus: 'Optimal' | 'Busy' | 'Overloaded';
   kitchenWorkloadPercentage: number;
-  activeChefsCount: number;
-  overloadedStationsCount: number;
-
-  // Employees & Attendance
-  totalEmployees: number;
-  presentEmployeesCount: number;
-  lateEmployeesCount: number;
-  absentEmployeesCount: number;
-  onLeaveEmployeesCount: number;
-  attendanceRatePercentage: number;
-  totalOvertimeHoursToday: number;
-
-  // Customer Experience
-  avgCustomerRating: number; // out of 5
-  avgCustomerWaitTimeMinutes: number;
-  openCustomerComplaintsCount: number;
-  customerSatisfactionPercentage: number;
-
-  // Delivery & Drivers
-  availableDriversCount: number;
-  inTransitDriversCount: number;
-  avgDeliveryDurationMinutes: number;
+  avgKitchenPrepTimeMinutes: number;
+  avgPreparationTimeMinutes: number;
+  targetPrepTimeMinutes: number;
   deliverySuccessRatePercentage: number;
-  failedDeliveriesCount: number;
-
-  // Inventory & Stock
+  activeDriversCount: number;
+  inTransitDriversCount: number;
+  pendingDeliveriesCount: number;
+  attendanceRatePercentage: number;
+  presentEmployeesCount: number;
+  totalEmployees: number;
+  lateEmployeesCount: number;
+  lowStockItemsCount: number;
   criticalLowStockCount: number;
-  overstockedItemsCount: number;
-  dailyConsumptionRate: number;
-
-  // Reservations & Branch
-  activeReservationsCount: number;
-  tableOccupancyRatePercentage: number;
+  avgCustomerRating: number;
+  customerSatisfactionPercentage: number;
+  openCustomerComplaintsCount: number;
 }
 
 export interface DelayedOrderAlert {
   orderId: string;
   orderNumber: string;
   customerName: string;
+  orderType: string;
   itemsSummary: string;
   elapsedMinutes: number;
   targetMinutes: number;
-  assignedChef?: string;
-  station?: string;
-  severity: 'high' | 'medium';
+  prepTimeMinutes: number;
+  targetPrepTimeMinutes: number;
+  stationName: string;
+  assignedChef: string;
+  severity: 'high' | 'medium' | 'low';
+  status: string;
 }
 
 export interface OperationalSmartAlert {
   id: string;
-  department: 'kitchen' | 'orders' | 'inventory' | 'staff' | 'delivery' | 'customer' | 'equipment';
+  type: 'kitchen' | 'delivery' | 'staff' | 'inventory' | 'customer';
+  department: 'kitchen' | 'orders' | 'staff' | 'delivery' | 'assistant';
   severity: 'critical' | 'warning' | 'info';
   title: string;
+  description: string;
   message: string;
   metricLabel: string;
-  recommendedAction: string;
+  actionText: string;
   timestamp: string;
+  actionPayload?: any;
 }
 
 export interface OperationalRecommendation {
   id: string;
-  category: 'schedule' | 'kitchen_workflow' | 'inventory_planning' | 'delivery_strategy' | 'customer_service' | 'prep_process';
   title: string;
   description: string;
-  impact: 'High' | 'Medium' | 'Low';
-  actionType: string;
-  actionPayload?: any;
+  impact: string;
+  category: 'Kitchen Efficiency' | 'Delivery Optimization' | 'Staff Re-balancing' | 'Inventory Alert';
 }
 
-export interface OperationalDataPackage {
+export interface OperationsDataPackage {
   orders: Order[];
   products: Product[];
   ingredients: Ingredient[];
-  expenses: Expense[];
+  expenses?: Expense[];
   employees: Employee[];
-  suppliers: Supplier[];
+  suppliers?: Supplier[];
   drivers?: DeliveryDriver[];
   stations?: KitchenStation[];
   attendance?: EmployeeAttendance[];
@@ -113,395 +92,196 @@ export interface OperationalDataPackage {
   equipment?: EquipmentItem[];
 }
 
-/**
- * Computes real-time Operations Management analysis across all departments
- */
-export function calculateOperationsAnalytics(data: OperationalDataPackage) {
+export function calculateOperationsAnalytics(data: OperationsDataPackage) {
   const {
     orders = [],
     products = [],
     ingredients = [],
-    expenses = [],
     employees = [],
-    suppliers = [],
     drivers = [],
-    stations = [],
     attendance = [],
-    reservations = [],
-    branches = [],
-    feedbacks = [],
-    equipment = []
+    feedbacks = []
   } = data;
 
   const todayStr = getMogadishuDateString();
-  const now = new Date();
 
-  // 1. ORDERS PIPELINE COMPUTATION
-  let totalNewOrders = 0;
-  let totalPreparingOrders = 0;
-  let totalReadyOrders = 0;
-  let totalDeliveredOrders = 0;
-  let totalCancelledOrders = 0;
-  let delayedOrdersCount = 0;
-  let totalPrepMinutesSum = 0;
-  let prepOrdersMeasuredCount = 0;
+  // Kitchen Metrics
+  const preparingOrders = orders.filter(o => o.status === 'preparing' || o.prepStatus === 'preparing');
+  const delayedOrders = orders.filter(o => (o.prepTimeMinutes || 0) > (o.targetPrepTimeMinutes || 15));
+  const delayedOrdersCount = delayedOrders.length;
+  const kitchenStatus: 'Optimal' | 'Busy' | 'Overloaded' = delayedOrdersCount > 2 ? 'Overloaded' : delayedOrdersCount > 0 ? 'Busy' : 'Optimal';
+  const kitchenWorkloadPercentage = Math.min(100, Math.max(20, (preparingOrders.length * 15) + (delayedOrdersCount * 20)));
 
-  const delayedOrderAlerts: DelayedOrderAlert[] = [];
+  const prepOrders = orders.filter(o => (o.prepTimeMinutes || 0) > 0);
+  const avgKitchenPrepTimeMinutes = prepOrders.length > 0
+    ? Math.round(prepOrders.reduce((sum, o) => sum + (o.prepTimeMinutes || 0), 0) / prepOrders.length)
+    : 0;
 
-  orders.forEach(ord => {
-    // Map order status to operational pipeline
-    const status = ord.prepStatus || (ord.status === 'pending' ? 'preparing' : ord.status === 'completed' ? 'delivered' : 'cancelled');
+  // Delivery Metrics
+  const totalDeliveries = orders.filter(o => o.orderType === 'delivery').length;
+  const failedDeliveries = orders.filter(o => o.deliveryStatus === 'failed').length;
+  const deliverySuccessRatePercentage = totalDeliveries > 0 ? Math.round(((totalDeliveries - failedDeliveries) / totalDeliveries) * 100) : 0;
+  const activeDriversCount = drivers.filter(d => d.status === 'available' || d.status === 'in_transit').length;
+  const inTransitDriversCount = drivers.filter(d => d.status === 'in_transit').length;
+  const pendingDeliveriesCount = orders.filter(o => o.orderType === 'delivery' && (o.deliveryStatus === 'pending' || o.deliveryStatus === 'assigned')).length;
 
-    if (status === 'new') totalNewOrders++;
-    else if (status === 'preparing') totalPreparingOrders++;
-    else if (status === 'ready') totalReadyOrders++;
-    else if (status === 'delivered') totalDeliveredOrders++;
-    else if (status === 'cancelled') totalCancelledOrders++;
+  // Staff Attendance Metrics
+  const presentCount = attendance.filter(a => a.status === 'present').length;
+  const lateCount = attendance.filter(a => a.status === 'late').length;
+  const totalStaff = employees.length;
+  const attendanceRatePercentage = totalStaff > 0 ? Math.round(((presentCount + lateCount) / totalStaff) * 100) : 0;
 
-    // Preparation Time calculation
-    const targetMin = ord.targetPrepTimeMinutes || 15;
-    const elapsedMinutes = ord.prepTimeMinutes || (status === 'preparing' ? Math.floor((now.getTime() - new Date(ord.createdAt).getTime()) / 60000) : 12);
+  // Inventory Stockouts
+  const lowStockItemsCount = products.filter(p => p.stock <= p.minStockAlert).length + ingredients.filter(i => i.stock <= i.minStockAlert).length;
+  const criticalLowStockCount = lowStockItemsCount;
 
-    if (status === 'preparing' || status === 'new') {
-      if (elapsedMinutes > targetMin) {
-        delayedOrdersCount++;
-        delayedOrderAlerts.push({
-          orderId: ord.id,
-          orderNumber: ord.orderNumber,
-          customerName: ord.customerName,
-          itemsSummary: ord.items.map(i => `${i.quantity}x ${i.productName}`).join(', '),
-          elapsedMinutes,
-          targetMinutes: targetMin,
-          assignedChef: ord.assignedChef || 'Youssef Hassan (Head Chef)',
-          station: 'Mains & Grill',
-          severity: elapsedMinutes > 25 ? 'high' : 'medium'
-        });
-      }
-    }
-
-    if (elapsedMinutes > 0) {
-      totalPrepMinutesSum += elapsedMinutes;
-      prepOrdersMeasuredCount++;
-    }
-  });
-
-  const avgPreparationTimeMinutes = prepOrdersMeasuredCount > 0 ? Math.round(totalPrepMinutesSum / prepOrdersMeasuredCount) : 14;
-
-  // 2. KITCHEN WORKLOAD COMPUTATION
-  const activeChefsCount = employees.filter(e => e.role === 'chef' && e.status === 'active').length || 2;
-  const kitchenCapacity = activeChefsCount * 6; // e.g. 6 orders max per chef
-  const currentActiveKitchenOrders = totalNewOrders + totalPreparingOrders;
-  const kitchenWorkloadPercentage = Math.min(100, Math.round((currentActiveKitchenOrders / (kitchenCapacity || 10)) * 100));
-
-  let kitchenStatus: 'Optimal' | 'Busy' | 'Overloaded' = 'Optimal';
-  if (kitchenWorkloadPercentage > 85 || delayedOrdersCount >= 3) kitchenStatus = 'Overloaded';
-  else if (kitchenWorkloadPercentage > 60 || delayedOrdersCount >= 1) kitchenStatus = 'Busy';
-
-  const overloadedStationsCount = stations.filter(s => s.status === 'overloaded').length;
-
-  // 3. EMPLOYEES & ATTENDANCE COMPUTATION
-  const totalEmployees = employees.length || 4;
-  let presentEmployeesCount = attendance.filter(a => a.status === 'present').length;
-  let lateEmployeesCount = attendance.filter(a => a.status === 'late').length;
-  let absentEmployeesCount = attendance.filter(a => a.status === 'absent').length;
-  let onLeaveEmployeesCount = attendance.filter(a => a.status === 'on_leave').length;
-
-  // Default fallback if no attendance entries today
-  if (attendance.length === 0) {
-    presentEmployeesCount = employees.filter(e => e.status === 'active').length - 1;
-    lateEmployeesCount = 1; // 1 employee late by default for operational detection
-    absentEmployeesCount = 0;
-    onLeaveEmployeesCount = employees.filter(e => e.status === 'on_leave').length;
-  }
-
-  const totalAccountedStaff = presentEmployeesCount + lateEmployeesCount + absentEmployeesCount;
-  const attendanceRatePercentage = totalAccountedStaff > 0 
-    ? Math.round(((presentEmployeesCount + lateEmployeesCount) / totalAccountedStaff) * 100) 
-    : 92;
-
-  const totalOvertimeHoursToday = attendance.reduce((sum, a) => sum + (a.overtimeHours || 0), 2.5);
-
-  // 4. CUSTOMER EXPERIENCE COMPUTATION
-  const ratedOrders = orders.filter(o => o.rating && o.rating > 0);
-  const totalRatingsSum = ratedOrders.reduce((sum, o) => sum + (o.rating || 5), 0);
-  const avgCustomerRating = ratedOrders.length > 0 ? Number((totalRatingsSum / ratedOrders.length).toFixed(1)) : 4.7;
-
-  const customerSatisfactionPercentage = Math.round((avgCustomerRating / 5) * 100);
-  const openCustomerComplaintsCount = feedbacks.filter(f => f.status === 'open').length + orders.filter(o => o.complaint).length;
-  const avgCustomerWaitTimeMinutes = Math.round(avgPreparationTimeMinutes + 5);
-
-  // 5. DELIVERY & DRIVER COMPUTATION
-  const availableDriversCount = drivers.filter(d => d.status === 'available').length || 3;
-  const inTransitDriversCount = drivers.filter(d => d.status === 'in_transit').length || 1;
-  const failedDeliveriesCount = orders.filter(o => o.deliveryStatus === 'failed').length;
-  const totalDeliveries = orders.filter(o => o.orderType === 'delivery').length || 10;
-  const successfulDeliveries = totalDeliveries - failedDeliveriesCount;
-  const deliverySuccessRatePercentage = totalDeliveries > 0 ? Math.round((successfulDeliveries / totalDeliveries) * 100) : 98;
-  const avgDeliveryDurationMinutes = 22;
-
-  // 6. INVENTORY & STOCK MONITORING
-  const criticalLowStockCount = products.filter(p => p.stock <= p.minStockAlert).length +
-    ingredients.filter(ing => ing.stock <= ing.minStockAlert).length;
-
-  const overstockedItemsCount = products.filter(p => p.stock > (p.salesCount * 3 + 50)).length;
-  const dailyConsumptionRate = ingredients.reduce((sum, ing) => sum + (ing.costPerUnit * 4), 180);
-
-  // 7. RESERVATIONS & BRANCH
-  const activeReservationsCount = reservations.filter(r => r.status === 'confirmed').length || 4;
-  const tableOccupancyRatePercentage = branches.length > 0
-    ? Math.round(branches.reduce((acc, b) => acc + (b.occupancyRate || 0), 0) / branches.length)
-    : 78;
+  // Customer Feedback & Ratings
+  const openCustomerComplaintsCount = feedbacks.filter(f => f.status === 'open').length;
+  const ratedOrders = orders.filter(o => typeof o.rating === 'number' && o.rating > 0);
+  const avgCustomerRating = ratedOrders.length > 0 
+    ? Number((ratedOrders.reduce((sum, o) => sum + (o.rating || 0), 0) / ratedOrders.length).toFixed(1)) 
+    : 0;
+  const customerSatisfactionPercentage = ratedOrders.length > 0 ? Math.round((avgCustomerRating / 5) * 100) : 0;
 
   const kpis: OperationsKPIs = {
-    totalNewOrders,
-    totalPreparingOrders,
-    totalReadyOrders,
-    totalDeliveredOrders,
-    totalCancelledOrders,
+    totalPreparingOrders: preparingOrders.length,
     delayedOrdersCount,
-    avgPreparationTimeMinutes,
-    targetPrepTimeMinutes: 15,
     kitchenStatus,
     kitchenWorkloadPercentage,
-    activeChefsCount,
-    overloadedStationsCount,
-    totalEmployees,
-    presentEmployeesCount,
-    lateEmployeesCount,
-    absentEmployeesCount,
-    onLeaveEmployeesCount,
-    attendanceRatePercentage,
-    totalOvertimeHoursToday,
-    avgCustomerRating,
-    avgCustomerWaitTimeMinutes,
-    openCustomerComplaintsCount,
-    customerSatisfactionPercentage,
-    availableDriversCount,
-    inTransitDriversCount,
-    avgDeliveryDurationMinutes,
+    avgKitchenPrepTimeMinutes,
+    avgPreparationTimeMinutes: avgKitchenPrepTimeMinutes,
+    targetPrepTimeMinutes: 15,
     deliverySuccessRatePercentage,
-    failedDeliveriesCount,
+    activeDriversCount,
+    inTransitDriversCount,
+    pendingDeliveriesCount,
+    attendanceRatePercentage,
+    presentEmployeesCount: presentCount,
+    totalEmployees: totalStaff,
+    lateEmployeesCount: lateCount,
+    lowStockItemsCount,
     criticalLowStockCount,
-    overstockedItemsCount,
-    dailyConsumptionRate,
-    activeReservationsCount,
-    tableOccupancyRatePercentage
+    avgCustomerRating,
+    customerSatisfactionPercentage,
+    openCustomerComplaintsCount
   };
 
-  // =========================================================================
-  // SMART OPERATIONAL ALERTS
-  // =========================================================================
-  const smartAlerts: OperationalSmartAlert[] = [];
+  const delayedOrderAlerts: DelayedOrderAlert[] = delayedOrders.slice(0, 5).map(o => ({
+    orderId: o.id,
+    orderNumber: (o as any).orderNumber || `ORD-${o.id.slice(-4)}`,
+    customerName: o.customerName || 'Walk-in Guest',
+    orderType: o.orderType,
+    itemsSummary: o.items ? o.items.map(i => `${i.quantity}x ${i.productName}`).join(', ') : 'Assorted Dishes',
+    elapsedMinutes: o.prepTimeMinutes || 0,
+    targetMinutes: o.targetPrepTimeMinutes || 15,
+    prepTimeMinutes: o.prepTimeMinutes || 0,
+    targetPrepTimeMinutes: o.targetPrepTimeMinutes || 15,
+    stationName: (o as any).stationName || 'Kitchen Station',
+    assignedChef: (o as any).assignedChef || (o as any).employeeName || 'Staff',
+    severity: (o.prepTimeMinutes || 0) > 20 ? 'high' : 'medium',
+    status: o.status
+  }));
 
-  // 1. Kitchen Overloaded Alert
-  if (kitchenStatus === 'Overloaded') {
-    smartAlerts.push({
-      id: 'alt_kitchen_overload',
+  const smartAlerts: OperationalSmartAlert[] = [
+    {
+      id: 'alert_kitchen_delay',
+      type: 'kitchen',
       department: 'kitchen',
-      severity: 'critical',
-      title: 'KITCHEN OVERLOAD WARNING',
-      message: `Kitchen workload capacity has hit ${kitchenWorkloadPercentage}%. ${totalPreparingOrders} orders in queue with ${delayedOrdersCount} delayed meals.`,
-      metricLabel: `${kitchenWorkloadPercentage}% Capacity`,
-      recommendedAction: 'Re-assign prep tasks or activate backup shift chef.',
-      timestamp: new Date().toLocaleTimeString()
-    });
-  }
-
-  // 2. Orders Delayed Alert
-  if (delayedOrdersCount > 0) {
-    smartAlerts.push({
-      id: 'alt_delayed_orders',
-      department: 'orders',
-      severity: delayedOrdersCount >= 3 ? 'critical' : 'warning',
-      title: 'ORDER PREPARATION DELAYS DETECTED',
-      message: `${delayedOrdersCount} order(s) have exceeded the 15-minute target preparation threshold.`,
+      severity: delayedOrdersCount > 0 ? 'warning' : 'info',
+      title: 'Kitchen Preparation Speed',
+      description: delayedOrdersCount > 0 
+        ? `${delayedOrdersCount} order(s) exceeded target prep time. Re-balance workload across prep stations.`
+        : 'All active kitchen stations operating at optimal prep speed.',
+      message: delayedOrdersCount > 0 
+        ? `${delayedOrdersCount} orders delayed in kitchen prep queue.`
+        : 'Kitchen station throughput running optimally.',
       metricLabel: `${delayedOrdersCount} Delayed Orders`,
-      recommendedAction: 'Alert kitchen expediter to prioritize delayed orders.',
-      timestamp: new Date().toLocaleTimeString()
-    });
-  }
-
-  // 3. Low Stock Alert
-  if (criticalLowStockCount > 0) {
-    smartAlerts.push({
-      id: 'alt_low_stock_ops',
-      department: 'inventory',
-      severity: 'warning',
-      title: 'CRITICAL INGREDIENT STOCK ALERT',
-      message: `${criticalLowStockCount} raw ingredients/products are below minimum stock thresholds.`,
-      metricLabel: `${criticalLowStockCount} Low Items`,
-      recommendedAction: 'Issue quick purchase order to assigned suppliers.',
-      timestamp: new Date().toLocaleTimeString()
-    });
-  }
-
-  // 4. Employee Lateness / Absence Alert
-  if (lateEmployeesCount > 0 || absentEmployeesCount > 0) {
-    smartAlerts.push({
-      id: 'alt_staff_late',
-      department: 'staff',
-      severity: 'info',
-      title: 'STAFF ATTENDANCE DISPARITY',
-      message: `${lateEmployeesCount} employee(s) logged late arrival and ${absentEmployeesCount} absent today.`,
-      metricLabel: `${lateEmployeesCount} Late / ${absentEmployeesCount} Absent`,
-      recommendedAction: 'Adjust waiter shift allocations for evening rush.',
-      timestamp: new Date().toLocaleTimeString()
-    });
-  }
-
-  // 5. Customer Complaint Alert
-  if (openCustomerComplaintsCount > 0) {
-    smartAlerts.push({
-      id: 'alt_complaints',
-      department: 'customer',
-      severity: 'warning',
-      title: 'CUSTOMER COMPLAINT REQUIRING RESOLUTION',
-      message: `${openCustomerComplaintsCount} open complaint(s) logged regarding wait time or dish substitution.`,
-      metricLabel: `${openCustomerComplaintsCount} Open Complaints`,
-      recommendedAction: 'Offer automated courtesy discount voucher to affected customers.',
-      timestamp: new Date().toLocaleTimeString()
-    });
-  }
-
-  // 6. Equipment Maintenance Alert
-  const maintenanceNeededCount = equipment.filter(e => e.status === 'needs_maintenance' || e.status === 'broken').length;
-  if (maintenanceNeededCount > 0) {
-    smartAlerts.push({
-      id: 'alt_equipment',
-      department: 'equipment',
-      severity: 'warning',
-      title: 'EQUIPMENT MAINTENANCE REQUIRED',
-      message: `${maintenanceNeededCount} appliance(s) flagged for scheduled servicing.`,
-      metricLabel: `${maintenanceNeededCount} Equipment Alerts`,
-      recommendedAction: 'Schedule technician maintenance visit during quiet hours.',
-      timestamp: new Date().toLocaleTimeString()
-    });
-  }
-
-  // =========================================================================
-  // AI OPERATIONAL RECOMMENDATIONS
-  // =========================================================================
-  const recommendations: OperationalRecommendation[] = [
-    {
-      id: 'rec_kitchen_balance',
-      category: 'kitchen_workflow',
-      title: 'Balance Kitchen Station Workload',
-      description: `Reassign appetizers and beverage prep from the Grill Station to the Cold Prep Station to reduce peak prep time by ~4 minutes.`,
-      impact: 'High',
-      actionType: 'BALANCE_STATIONS',
-      actionPayload: { stationId: 'st_1' }
+      actionText: 'Re-balance Stations',
+      timestamp: 'Just now'
     },
     {
-      id: 'rec_shift_rebalance',
-      category: 'schedule',
-      title: 'Optimize Shift Roster for Lunch Peak',
-      description: `Shift 1 waiter from morning quiet hours (9 AM - 11 AM) to the lunch rush (12 PM - 2 PM) to improve customer service response speed.`,
-      impact: 'High',
-      actionType: 'UPDATE_ROSTER',
-      actionPayload: { shift: 'lunch_peak' }
+      id: 'alert_delivery_capacity',
+      type: 'delivery',
+      department: 'delivery',
+      severity: pendingDeliveriesCount > 3 ? 'warning' : 'info',
+      title: 'Active Delivery Pipeline',
+      description: `${pendingDeliveriesCount} orders pending dispatch across ${activeDriversCount} active driver(s).`,
+      message: `${pendingDeliveriesCount} pending orders awaiting driver assignment.`,
+      metricLabel: `${pendingDeliveriesCount} Pending Orders`,
+      actionText: 'Assign Drivers',
+      timestamp: 'Just now'
     },
     {
-      id: 'rec_delivery_dispatch',
-      category: 'delivery_strategy',
-      title: 'Batch Neighboring Delivery Orders',
-      description: `Automatically group 2 delivery orders heading to the same district to increase driver trip efficiency by 35%.`,
-      impact: 'Medium',
-      actionType: 'BATCH_DELIVERIES'
-    },
-    {
-      id: 'rec_inventory_reorder',
-      category: 'inventory_planning',
-      title: 'Automate Daily Raw Ingredient Reorder',
-      description: `Create purchase orders for Camel Meat & Basmati Rice today to prevent stockouts ahead of weekend dinner surges.`,
-      impact: 'High',
-      actionType: 'AUTO_REORDER'
+      id: 'alert_inventory_low',
+      type: 'inventory',
+      department: 'orders',
+      severity: lowStockItemsCount > 0 ? 'warning' : 'info',
+      title: 'Low Stock Ingredients',
+      description: `${lowStockItemsCount} critical ingredients below minimum safety threshold.`,
+      message: `${lowStockItemsCount} items require immediate supplier purchase order.`,
+      metricLabel: `${lowStockItemsCount} Stock Alerts`,
+      actionText: 'Generate Purchase Orders',
+      timestamp: '5 mins ago'
     }
   ];
 
-  // =========================================================================
-  // MULTI-LINGUAL OPERATIONAL BUSINESS QUESTIONS & ANSWERS (EN, AR, SO)
-  // =========================================================================
-  const lateEmployeeNames = attendance.filter(a => a.status === 'late').map(a => a.employeeName).join(', ') || 'Bilal Jama (Waiter)';
+  const recommendations: OperationalRecommendation[] = [
+    {
+      id: 'rec_1',
+      title: 'Pre-portion Mandi Rice & Spices for Peak Dinner Shift',
+      description: 'Pre-weigh 500g rice portions between 4 PM and 5:30 PM to reduce prep time by 3.5 minutes per order.',
+      impact: '-20% Kitchen Prep Wait Times',
+      category: 'Kitchen Efficiency'
+    },
+    {
+      id: 'rec_2',
+      title: 'Group Westside Delivery Orders for Shared Driver Routes',
+      description: 'Dispatch orders destined for Westside District in batched batches of 2-3 orders to save 18 mins driver transit.',
+      impact: '+24% Driver Efficiency',
+      category: 'Delivery Optimization'
+    }
+  ];
 
   const operationalQuestions = {
     kitchen_performance: {
-      question_en: 'How is the kitchen performing today?',
-      question_ar: 'كيف هو أداء المطبخ اليوم؟',
-      question_so: 'Sida uu maanta yahay waxqabadka jikadu?',
-      answer_en: `**Kitchen Operational Status: ${kitchenStatus}** (${kitchenWorkloadPercentage}% Capacity)
-- **Active Orders**: ${totalPreparingOrders} preparing, ${totalNewOrders} new orders in queue.
-- **Average Prep Time**: ${avgPreparationTimeMinutes} minutes (Target: ${kpis.targetPrepTimeMinutes} min).
-- **Delayed Meals**: ${delayedOrdersCount} order(s) currently exceeding 15 minutes.
-- **Chef Roster**: ${activeChefsCount} chefs on station.`,
-      answer_ar: `**حالة المطبخ التشغيلية: ${kitchenStatus === 'Optimal' ? 'ممتاز' : kitchenStatus === 'Busy' ? 'مشغول' : 'ضغط عالي'}** (السعة: ${kitchenWorkloadPercentage}%)
-- **الطلبات النشطة**: ${totalPreparingOrders} قيد التحضير، ${totalNewOrders} طلب جديد.
-- **متوسط وقت التحضير**: ${avgPreparationTimeMinutes} دقيقة (الهدف: ${kpis.targetPrepTimeMinutes} دقائق).
-- **الطلبات المتأخرة**: ${delayedOrdersCount} طلب تجاوز 15 دقيقة.`,
-      answer_so: `**Xaaladda Jikada: ${kitchenStatus}** (Awoodda: ${kitchenWorkloadPercentage}%)
-- **Odalabyada Socda**: ${totalPreparingOrders} ayaa la diyaarinayaa, ${totalNewOrders} waa cusub yihiin.
-- **Muddada Diyaarinta**: ${avgPreparationTimeMinutes} daqiiqo (Hadafka: ${kpis.targetPrepTimeMinutes} daqiiqo).
-- **Odalabyada Daahay**: ${delayedOrdersCount} odalab ayaa dhafay 15 daqiiqo.`
+      question_en: 'How is the kitchen performing right now?',
+      question_ar: 'كيف يسير أداء المطبخ حالياً؟',
+      question_so: 'Sidee tahay shaqada jikada hadda?',
+      answer_en: `**Kitchen Status: ${kitchenStatus.toUpperCase()} (${kitchenWorkloadPercentage}% Capacity)**\n- **Active Orders in Prep**: ${preparingOrders.length}\n- **Delayed Orders**: ${delayedOrdersCount}\n- **Avg Prep Time**: ${avgKitchenPrepTimeMinutes} minutes.`,
+      answer_ar: `**حالة المطبخ: ${kitchenStatus === 'Optimal' ? 'ممتاز وطبيعي' : kitchenStatus === 'Busy' ? 'مشغول' : 'مزدحم'} (${kitchenWorkloadPercentage}% من الطاقة)**\n- **الطلبات قيد التحضير**: ${preparingOrders.length}\n- **الطلبات المتأخرة**: ${delayedOrdersCount}\n- **متوسط زمن التحضير**: ${avgKitchenPrepTimeMinutes} دقيقة.`,
+      answer_so: `**Xaaladda Jikada: ${kitchenStatus} (${kitchenWorkloadPercentage}%)**\n- **Odalabyada la diyaarinayo**: ${preparingOrders.length}\n- **Kuwa daahay**: ${delayedOrdersCount}\n- **Celceliska wakhtiga**: ${avgKitchenPrepTimeMinutes} daqiiqo.`
     },
     employee_late: {
-      question_en: 'Which employee is late?',
-      question_ar: 'من هو الموظف المتأخر اليوم؟',
-      question_so: 'Awee shaqaalaha maanta daahay?',
-      answer_en: `**Attendance Disparity Log:**
-- **Late Arrivals Today**: ${lateEmployeesCount > 0 ? lateEmployeeNames : 'No employees are late today.'}
-- **Overall Attendance**: ${presentEmployeesCount} present out of ${totalEmployees} total staff (${attendanceRatePercentage}% rate).`,
-      answer_ar: `**سجل الحضور والغياب:**
-- **الموظفون المتأخرون**: ${lateEmployeeNames} (تأخير 25 دقيقة).
-- **نسبة الحضور الإجمالية**: ${attendanceRatePercentage}%.`,
-      answer_so: `**Xogta Soo Gaadhistii Shaqaalaha:**
-- **Shaqaalaha Daahay**: ${lateEmployeeNames}.
-- **Boqolkiiba Soo Gaadhistii**: ${attendanceRatePercentage}%.`
+      question_en: 'Which employees arrived late today?',
+      question_ar: 'من هم الموظفون المتأخرون اليوم؟',
+      question_so: 'Shaqaalaha daahay maanta waa kuwee?',
+      answer_en: `**Staff Attendance Overview:**\n- **Overall Attendance Rate**: ${attendanceRatePercentage}%\n- **Late Arrivals**: ${lateCount} employee(s) logged late arrival for morning opening.`,
+      answer_ar: `**ملخص حضور الكادر:**\n- **نسبة الحضور الإجمالية**: ${attendanceRatePercentage}%\n- **المتأخرون**: ${lateCount} موظفاً سجلوا وصولاً متأخراً في الوردية الصباحية.`,
+      answer_so: `**Xogta Shaqaalaha:**\n- **Boqolkiiba imaanshaha**: ${attendanceRatePercentage}%\n- **Shaqaalaha daahay**: ${lateCount} shaqaale.`
     },
     orders_delayed: {
-      question_en: 'Which orders are delayed?',
-      question_ar: 'ما هي الطلبات المتأخرة حالياً؟',
-      question_so: 'Kuwani waa odalabyada daahay?',
-      answer_en: delayedOrderAlerts.length > 0 
-        ? `**Delayed Orders Exceeding Target Prep Time:**\n` + delayedOrderAlerts.map((d, i) => `${i + 1}. **${d.orderNumber}** (${d.customerName}) - Elapsed: **${d.elapsedMinutes} mins** (Target: ${d.targetMinutes}m) | Items: ${d.itemsSummary}`).join('\n')
-        : 'All current kitchen orders are being prepared within the 15-minute standard threshold.',
-      answer_ar: delayedOrderAlerts.length > 0
-        ? `**الطلبات المتأخرة عن الوقت المحدد:**\n` + delayedOrderAlerts.map((d, i) => `${i + 1}. **${d.orderNumber}** (${d.customerName}) - الوقت المنقضي: **${d.elapsedMinutes} دقيقة**`).join('\n')
-        : 'جميع الطلبات تسير وفق الوقت المحدد بدون أي تأخير.',
-      answer_so: delayedOrderAlerts.length > 0
-        ? `**Odalabyada Daahay Maanta:**\n` + delayedOrderAlerts.map((d, i) => `${i + 1}. **${d.orderNumber}** (${d.customerName}) - Waqtiga: **${d.elapsedMinutes} daqiiqo**`).join('\n')
-        : 'Dhammaan odalabyadu waxay ku jiraan waqtigii loogu talogalay.'
+      question_en: 'Are there any delayed orders in the kitchen?',
+      question_ar: 'هل توجد طلبات متأخرة في المطبخ؟',
+      question_so: 'Ma jiraan odalabyo ku daahay jikada?',
+      answer_en: `**Delayed Orders: ${delayedOrdersCount}**\n${delayedOrdersCount > 0 ? 'Orders have exceeded the 15-minute preparation limit at the Grill Station. Expedite recommended.' : 'Zero delayed orders. Kitchen pipeline is smooth.'}`,
+      answer_ar: `**الطلبات المتأخرة: ${delayedOrdersCount}**\n${delayedOrdersCount > 0 ? 'الطلبات تجاوزت حد الـ 15 دقيقة في محطة المشويات. يوصى بالتعجيل.' : 'لا توجد طلبات متأخرة. تدفق المطبخ يسير بسلاسة كاملة.'}`,
+      answer_so: `**Odalabyada Daahay: ${delayedOrdersCount}**`
     },
     deliveries_pending: {
-      question_en: 'How many deliveries are still pending?',
-      question_ar: 'كم عدد طلبات التوصيل المعلقة؟',
-      question_so: 'Pilaa odalab oo gaarsiin ah ayaa weli dhiman?',
-      answer_en: `**Delivery Department Live Status:**
-- **In-Transit Deliveries**: ${inTransitDriversCount} order(s) on route.
-- **Available Drivers**: ${availableDriversCount} driver(s) ready at branch.
-- **Delivery Success Rate**: ${deliverySuccessRatePercentage}% (${failedDeliveriesCount} failed).
-- **Average Delivery Time**: ${avgDeliveryDurationMinutes} minutes.`,
-      answer_ar: `**حالة قسم التوصيل المباشر:**
-- **طلب قيد التوصيل**: ${inTransitDriversCount} طلب.
-- **السائقون المتاحون**: ${availableDriversCount} سائق.
-- **معدل نجاح التوصيل**: ${deliverySuccessRatePercentage}%.`,
-      answer_so: `**Xaaladda Qaybta Gaarsiinta:**
-- **Gaarsiinta Socota**: ${inTransitDriversCount} odalab.
-- **Darawalada Diyaarka Ah**: ${availableDriversCount} darawal.
-- **Boqolkiiba Guusha**: ${deliverySuccessRatePercentage}%.`
+      question_en: 'What is the delivery and driver status?',
+      question_ar: 'ما هي حالة التوصيل والسائقين؟',
+      question_so: 'Sidee tahay xaaladda gaarsiinta iyo darawaliinta?',
+      answer_en: `**Delivery Pipeline:**\n- **Success Rate**: ${deliverySuccessRatePercentage}%\n- **Active Drivers**: ${activeDriversCount || 3}\n- **Pending Dispatch**: ${pendingDeliveriesCount} order(s).`,
+      answer_ar: `**مسار التوصيل:**\n- **نسبة نجاح التوصيل**: ${deliverySuccessRatePercentage}%\n- **السائقون المتاحون**: ${activeDriversCount || 3}\n- **قيد الانتظار**: ${pendingDeliveriesCount} طلب.`,
+      answer_so: `**Xaaladda Gaarsiinta:**\n- **Guusha**: ${deliverySuccessRatePercentage}%\n- **Darawaliinta**: ${activeDriversCount || 3}`
     },
     reorder_ingredients_today: {
-      question_en: 'Do I need to reorder ingredients today?',
-      question_ar: 'هل أحتاج لإعادة طلب المكونات اليوم؟',
-      question_so: 'Ma u baahanahay inaan dib u odalapdo maanta maaddooyinka?',
-      answer_en: criticalLowStockCount > 0 
-        ? `**Yes! Immediate Reorder Required for ${criticalLowStockCount} items:**
-${ingredients.filter(i => i.stock <= i.minStockAlert).map(i => `- **${i.name}**: ${i.stock} ${i.unit} remaining (Min alert: ${i.minStockAlert} ${i.unit}) -> Supplier: ${i.supplierName}`).join('\n')}`
-        : 'No emergency ingredient reorders required today. Stock reserves are optimal.',
-      answer_ar: criticalLowStockCount > 0
-        ? `**نعم! يجب إعادة الطلب فوراً لـ ${criticalLowStockCount} عناصر:**\n` + ingredients.filter(i => i.stock <= i.minStockAlert).map(i => `- **${i.name}**: المتبقي ${i.stock} ${i.unit}`).join('\n')
-        : 'جميع مستويات المخزون ممتازة اليوم ولا تتطلب طلبات طارئة.',
-      answer_so: criticalLowStockCount > 0
-        ? `**Haa! Waxaad u baahan tahay inaa reorder garayso ${criticalLowStockCount} maaddo:**\n` + ingredients.filter(i => i.stock <= i.minStockAlert).map(i => `- **${i.name}**: Waxaa dhiman ${i.stock} ${i.unit}`).join('\n')
-        : 'Kaydka maaddooyinku waa kuwo ku filan maanta.'
+      question_en: 'Which ingredients need reordering today?',
+      question_ar: 'ما هي المكونات التي تحتاج إعادة طلب اليوم؟',
+      question_so: 'Maaddooyinka u baahan dib u dalbasho maanta?',
+      answer_en: `**Inventory Safety Check:**\n- **Low Stock Count**: ${lowStockItemsCount} items below safety buffers.\n- **Action**: Purchase orders prepared for raw meat, basmati rice, and cooking oil.`,
+      answer_ar: `**فحص أمان المخزون:**\n- **الأصناف المنخفضة**: ${lowStockItemsCount} صنفاً تحت حد الأمان.\n- **الإجراء**: أوامر الشراء جاهزة للحوم والأرز وزيوت الطهي.`,
+      answer_so: `**Xaaladda Kaydka:**\n- ${lowStockItemsCount} maaddo oo hooseeya.`
     }
   };
 

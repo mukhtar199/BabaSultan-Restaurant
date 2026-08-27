@@ -15,6 +15,7 @@ interface PaymentModalProps {
   cashierName: string;
   cashierUid: string;
   deliveryZones?: DeliveryZone[];
+  branchDefaultDeliveryFee?: number | null;
   initialZoneId?: string;
   initialAddress?: string;
   onClose: () => void;
@@ -33,6 +34,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   cashierName,
   cashierUid,
   deliveryZones,
+  branchDefaultDeliveryFee,
   initialZoneId,
   initialAddress,
   onClose,
@@ -48,16 +50,45 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [selectedZoneId, setSelectedZoneId] = useState<string>(
     initialZoneId || activeZones[0]?.id || ''
   );
-  const selectedZone = activeZones.find(z => z.id === selectedZoneId) || activeZones[0];
+  
+  useEffect(() => {
+    if (!selectedZoneId && activeZones.length > 0) {
+      setSelectedZoneId(activeZones[0].id);
+    }
+  }, [activeZones, selectedZoneId]);
+
+  const selectedZone = activeZones.find(z => z.id === selectedZoneId) || (activeZones.length > 0 ? activeZones[0] : null);
   
   const [deliveryAddress, setDeliveryAddress] = useState<string>(
     initialAddress || selectedCustomer?.address || ''
   );
 
-  const deliveryFee = orderType === 'delivery' ? (selectedZone?.baseDeliveryFee ?? 2.00) : 0;
+  // Authoritative Delivery Fee calculation
+  let deliveryFee = 0;
+  let isDeliveryConfigured = true;
+
+  if (orderType === 'delivery') {
+    if (selectedZone) {
+      const fee = typeof selectedZone.baseDeliveryFee === 'number'
+        ? selectedZone.baseDeliveryFee
+        : (typeof selectedZone.deliveryFee === 'number' ? selectedZone.deliveryFee : null);
+      if (fee !== null && fee >= 0) {
+        deliveryFee = fee;
+      } else if (typeof branchDefaultDeliveryFee === 'number' && branchDefaultDeliveryFee >= 0) {
+        deliveryFee = branchDefaultDeliveryFee;
+      } else {
+        isDeliveryConfigured = false;
+      }
+    } else if (typeof branchDefaultDeliveryFee === 'number' && branchDefaultDeliveryFee >= 0) {
+      deliveryFee = branchDefaultDeliveryFee;
+    } else {
+      isDeliveryConfigured = false;
+    }
+  }
+
   const payableTotal = orderType === 'delivery' 
-    ? Math.max(0, subtotal + tax + deliveryFee - discountAmount)
-    : grandTotal;
+    ? Math.max(0, Math.round((subtotal + tax + deliveryFee - discountAmount) * 100) / 100)
+    : Math.round(grandTotal * 100) / 100;
 
   const [amountTendered, setAmountTendered] = useState<string>(payableTotal.toString());
   const [orderNotes, setOrderNotes] = useState<string>('');
@@ -75,6 +106,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     if (cart.length === 0) return;
 
     if (orderType === 'delivery') {
+      if (!isDeliveryConfigured) {
+        alert('Delivery fee is not configured for this branch. Please select a valid delivery zone or configure branch delivery settings.');
+        return;
+      }
       if (!customerPhone.trim()) {
         alert('Please enter a customer phone number for delivery orders.');
         return;
@@ -94,8 +129,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         orderType,
         tableNumber: orderType === 'dine_in' ? tableNumber || 'T-01' : '',
         deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : undefined,
-        deliveryZoneId: orderType === 'delivery' ? selectedZone?.id : undefined,
-        deliveryZoneName: orderType === 'delivery' ? selectedZone?.name : undefined,
+        deliveryZoneId: orderType === 'delivery' ? (selectedZone?.id || undefined) : undefined,
+        deliveryZoneName: orderType === 'delivery' ? (selectedZone?.name || undefined) : undefined,
         deliveryFee: orderType === 'delivery' ? deliveryFee : 0,
         items: cart,
         subtotal,
@@ -146,7 +181,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           <div className="text-[10px] text-slate-500 flex flex-wrap justify-center gap-2">
             <span>Sub: ${(subtotal || 0).toFixed(2)}</span>
             <span>VAT: ${(tax || 0).toFixed(2)}</span>
-            {orderType === 'delivery' && <span className="text-amber-400 font-bold">Delivery Fee: +${(deliveryFee || 0).toFixed(2)}</span>}
+            {orderType === 'delivery' && (
+              <span className="text-amber-400 font-bold">
+                Delivery Fee: {deliveryFee === 0 ? 'Free ($0.00)' : `+$${deliveryFee.toFixed(2)}`}
+              </span>
+            )}
             {(discountAmount || 0) > 0 && <span className="text-emerald-400">Disc: -${(discountAmount || 0).toFixed(2)}</span>}
           </div>
         </div>
@@ -162,21 +201,43 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <span>Delivery Order Configuration</span>
               </div>
 
+              {!isDeliveryConfigured && (
+                <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-xl text-rose-300 font-semibold text-xs leading-relaxed">
+                  ⚠️ Delivery fee is not configured for this branch. Please select a valid delivery zone or configure branch delivery settings.
+                </div>
+              )}
+
               {/* Zone Selector */}
-              <div>
-                <label className="text-slate-300 font-bold block mb-1">Select Delivery Zone</label>
-                <select
-                  value={selectedZoneId}
-                  onChange={e => setSelectedZoneId(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-amber-500"
-                >
-                  {activeZones.map(z => (
-                    <option key={z.id} value={z.id}>
-                      {z.name} ({z.city}) — Fee: ${(z.baseDeliveryFee || 0).toFixed(2)} | EST: {z.estimatedTimeMinutes} min
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {activeZones.length > 0 ? (
+                <div>
+                  <label className="text-slate-300 font-bold block mb-1">Select Delivery Zone</label>
+                  <select
+                    value={selectedZoneId}
+                    onChange={e => setSelectedZoneId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-amber-500"
+                  >
+                    {activeZones.map(z => {
+                      const zFee = typeof z.baseDeliveryFee === 'number' ? z.baseDeliveryFee : (typeof z.deliveryFee === 'number' ? z.deliveryFee : 0);
+                      return (
+                        <option key={z.id} value={z.id}>
+                          {z.name} ({z.city}) — Fee: {zFee === 0 ? 'Free ($0.00)' : `$${zFee.toFixed(2)}`} | EST: {z.estimatedTimeMinutes} min
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-400">
+                  {typeof branchDefaultDeliveryFee === 'number' && branchDefaultDeliveryFee >= 0 ? (
+                    <div className="flex justify-between items-center py-1 text-slate-300">
+                      <span>Branch Default Delivery Rate:</span>
+                      <span className="font-bold text-emerald-400">
+                        {branchDefaultDeliveryFee === 0 ? 'Free ($0.00)' : `$${branchDefaultDeliveryFee.toFixed(2)}`}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {/* Delivery Address */}
               <div>
@@ -283,7 +344,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* Submit Order Button */}
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || (orderType === 'delivery' && !isDeliveryConfigured)}
             className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-extrabold py-3.5 rounded-2xl transition cursor-pointer shadow-lg shadow-emerald-500/20 text-sm flex items-center justify-center gap-2 mt-2"
           >
             {isSubmitting ? (

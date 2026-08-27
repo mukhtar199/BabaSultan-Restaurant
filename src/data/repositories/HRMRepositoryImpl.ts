@@ -703,7 +703,7 @@ export class HRMRepositoryImpl implements IHRMRepository {
     const onLeaveEmployees = employees.filter((e) => e.employmentStatus === 'On Leave').length;
 
     const presentToday = attendance.filter((a) => a.status === 'present').length;
-    const todayAttendanceRate = totalEmployees > 0 ? Math.round((presentToday / totalEmployees) * 100) : 100;
+    const todayAttendanceRate = totalEmployees > 0 ? Math.round((presentToday / totalEmployees) * 100) : 0;
 
     const pendingLeaveRequests = leave.filter(
       (l) => l.workflowStatus === 'Request' || l.workflowStatus === 'Manager Approval'

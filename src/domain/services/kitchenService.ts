@@ -100,7 +100,7 @@ export class KitchenService {
       }
     });
 
-    const avgPrepTimeMinutes = completedWithTime > 0 ? Math.round(totalPrepTimeMins / completedWithTime) : 12;
+    const avgPrepTimeMinutes = completedWithTime > 0 ? Math.round(totalPrepTimeMins / completedWithTime) : 0;
 
     // Station statistics
     const stationStats = stations.map(st => {
@@ -125,8 +125,8 @@ export class KitchenService {
         chefMap.set(s.assignedChef, {
           chefName: s.assignedChef,
           station: s.name,
-          itemsCompleted: s.completedOrdersToday || 12,
-          totalSpeed: s.avgPrepTimeMinutes || 10
+          itemsCompleted: s.completedOrdersToday || 0,
+          totalSpeed: s.avgPrepTimeMinutes || 0
         });
       }
     });

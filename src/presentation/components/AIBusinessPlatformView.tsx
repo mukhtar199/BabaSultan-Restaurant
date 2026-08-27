@@ -779,8 +779,8 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
 
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
                 <span className="text-xs text-slate-400 font-medium block">Active Staff Productivity</span>
-                <span className="text-lg font-bold text-teal-400 block mt-1">{employees.length || 8} Staff Members</span>
-                <span className="text-[10px] text-emerald-400 font-semibold">100% Shift Attendance</span>
+                <span className="text-lg font-bold text-teal-400 block mt-1">{employees.length} Staff Members</span>
+                <span className="text-[10px] text-emerald-400 font-semibold">{employees.filter(e => e.status === 'active').length} Active On Roster</span>
               </div>
             </div>
 
@@ -909,18 +909,25 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Top Customer Lifetime Value (LTV)</h4>
               <div className="space-y-2">
-                {analytics.customerList.map((c: any) => (
-                  <div key={c.id} className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="font-bold text-white block">{c.name}</span>
-                      <span className="text-[10px] text-slate-400">{c.phone || 'N/A'}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-extrabold text-emerald-400 block">${(c.orderSummary?.totalSpent || 150).toFixed(2)}</span>
-                      <span className="text-[10px] text-amber-400 font-bold uppercase">{c.membershipLevel || 'VIP'}</span>
-                    </div>
-                  </div>
-                ))}
+                {analytics.customerList.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4 bg-slate-950 rounded-2xl border border-slate-800">No customer records found.</p>
+                ) : (
+                  analytics.customerList.map((c: any) => {
+                    const spend = Number(c.totalSpending ?? c.totalSpent ?? c.orderSummary?.totalSpent ?? 0);
+                    return (
+                      <div key={c.id} className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-bold text-white block">{c.fullName || c.name || 'Valued Customer'}</span>
+                          <span className="text-[10px] text-slate-400">{c.phone || 'N/A'}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-extrabold text-emerald-400 block">${spend.toFixed(2)}</span>
+                          <span className="text-[10px] text-amber-400 font-bold uppercase">{c.membershipLevel || (c.status === 'vip' ? 'VIP' : 'Bronze')}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>

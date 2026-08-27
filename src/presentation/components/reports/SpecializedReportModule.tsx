@@ -135,16 +135,22 @@ export const SpecializedReportModule: React.FC<SpecializedReportModuleProps> = (
 
     columns = ['Customer Name', 'Phone / Contact', 'Total Orders', 'Total Spend ($)', 'Loyalty Tier', 'Last Order Date'];
     rows = customers.map((c) => {
-      const custOrders = orders.filter((o) => o.customerName === c.name || o.customerId === c.id);
-      const spend = custOrders.reduce((s, o) => s + o.totalAmount, 0);
       const anyCust = c as any;
+      const custOrders = orders.filter((o) => o.customerName === c.name || o.customerId === c.id || (o.customerPhone && o.customerPhone === c.phone));
+      const ordersSpend = custOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+      const recordedSpend = Number(c.totalSpending ?? c.totalSpent ?? anyCust.orderSummary?.totalSpent ?? 0);
+      const totalSpend = Math.max(ordersSpend, recordedSpend);
+      const totalOrdersCount = Math.max(custOrders.length, anyCust.orderSummary?.totalOrders || 0, c.totalOrders || 0);
+
+      const lastDate = c.lastOrderDate || anyCust.orderSummary?.lastOrderDate || (custOrders[0]?.createdAt);
+
       return [
-        c.name || 'Valued Guest',
+        c.fullName || c.name || 'Valued Guest',
         c.phone || 'N/A',
-        custOrders.length || anyCust.orderSummary?.totalOrders || 0,
-        `$${spend.toFixed(2)}`,
-        c.membershipLevel || 'Gold',
-        anyCust.orderSummary?.lastOrderDate ? new Date(anyCust.orderSummary.lastOrderDate).toLocaleDateString() : 'Recent',
+        totalOrdersCount,
+        `$${totalSpend.toFixed(2)}`,
+        c.membershipLevel || (c.status === 'vip' ? 'VIP' : 'Bronze'),
+        lastDate ? new Date(lastDate).toLocaleDateString() : 'N/A',
       ];
     });
   } else if (reportType === 'inventory') {

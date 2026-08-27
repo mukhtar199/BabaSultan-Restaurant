@@ -236,8 +236,8 @@ export function calculateCFOAnalytics(data: CFODataPackage) {
   else if (netMarginPercentage < 20) netMarginStatus = 'warning';
 
   // Accounts & Liquidity
-  let cashBalance = accounts.find(a => a.type === 'cash')?.balance || 4500;
-  let bankBalance = accounts.find(a => a.type === 'bank')?.balance || 28400;
+  let cashBalance = accounts.find(a => a.type === 'cash')?.balance ?? 0;
+  let bankBalance = accounts.find(a => a.type === 'bank')?.balance ?? 0;
   const totalLiquidity = cashBalance + bankBalance;
 
   // Cash Flow (Inflow - Outflow in 30 days)
@@ -256,14 +256,14 @@ export function calculateCFOAnalytics(data: CFODataPackage) {
   const estimatedCorporateTax = Math.max(0, netProfit) * 0.20; // 20% Tax on Net Profit
 
   // Inventory & Waste
-  const productValuation = products.reduce((sum, p) => sum + (p.stock * p.cost), 0);
-  const ingredientValuation = ingredients.reduce((sum, ing) => sum + (ing.stock * ing.costPerUnit), 0);
+  const productValuation = products.reduce((sum, p) => sum + ((p.stock || 0) * (p.cost || 0)), 0);
+  const ingredientValuation = ingredients.reduce((sum, ing) => sum + ((ing.stock || 0) * (ing.costPerUnit || 0)), 0);
   const totalInventoryValuation = productValuation + ingredientValuation;
 
-  const lowStockItemsCount = products.filter(p => p.stock <= p.minStockAlert).length +
-    ingredients.filter(ing => ing.stock <= ing.minStockAlert).length;
+  const lowStockItemsCount = products.filter(p => (p.stock || 0) <= (p.minStockAlert || 5)).length +
+    ingredients.filter(ing => (ing.stock || 0) <= (ing.minStockAlert || 5)).length;
 
-  const overstockedItemsCount = products.filter(p => p.stock > (p.salesCount * 3 + 50)).length;
+  const overstockedItemsCount = products.filter(p => (p.stock || 0) > ((p.salesCount || 0) * 3 + 50)).length;
 
   // Spoilage & Waste
   const wasteMovements = inventory_movements.filter(m => {
@@ -274,10 +274,10 @@ export function calculateCFOAnalytics(data: CFODataPackage) {
   wasteMovements.forEach(wm => {
     if (wm.itemType === 'product') {
       const pr = products.find(p => p.id === wm.itemId);
-      spoilageWasteLoss += wm.quantity * (pr?.cost || 10);
+      spoilageWasteLoss += wm.quantity * (pr?.cost || 0);
     } else {
       const ing = ingredients.find(i => i.id === wm.itemId);
-      spoilageWasteLoss += wm.quantity * (ing?.costPerUnit || 5);
+      spoilageWasteLoss += wm.quantity * (ing?.costPerUnit || 0);
     }
   });
 
@@ -289,8 +289,8 @@ export function calculateCFOAnalytics(data: CFODataPackage) {
   const refundRatePercentage = monthlyRevenue > 0 ? (totalRefunds / monthlyRevenue) * 100 : 0;
 
   // Employees
-  const activeEmployeeCount = employees.filter(e => e.status === 'active').length || 1;
-  const revenuePerEmployee = monthlyRevenue / activeEmployeeCount;
+  const activeEmployeeCount = employees.filter(e => e.status === 'active').length;
+  const revenuePerEmployee = activeEmployeeCount > 0 ? monthlyRevenue / activeEmployeeCount : 0;
   const payrollEfficiencyRatio = laborCosts > 0 ? monthlyRevenue / laborCosts : 0;
 
   const kpis: CFOKPIs = {

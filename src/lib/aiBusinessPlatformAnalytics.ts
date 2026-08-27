@@ -94,7 +94,7 @@ export function calculateAIBusinessPlatformAnalytics(data: AIPlatformDataPackage
 
   const liquidBalance = bankTransactions.reduce((acc, t) => {
     return t.type === 'deposit' ? acc + t.amount : acc - t.amount;
-  }, 12500);
+  }, 0);
 
   // 2. ACCOUNTANT ANALYTICS & MISTAKE DETECTION
   const accountingAnomalies: Array<{ id: string; title: string; issue: string; fix: string; severity: 'high' | 'medium' }> = [];
@@ -137,19 +137,31 @@ export function calculateAIBusinessPlatformAnalytics(data: AIPlatformDataPackage
   });
 
   // 3. OPERATIONS MANAGER ANALYTICS
-  const avgPrepTimeMinutes = completedOrders.length > 0 ? 14 : 12;
-  const avgWaitTimeMinutes = completedOrders.length > 0 ? 18 : 15;
+  const prepOrders = completedOrders.filter(o => (o.prepTimeMinutes || 0) > 0);
+  const avgPrepTimeMinutes = prepOrders.length > 0 
+    ? Math.round(prepOrders.reduce((sum, o) => sum + (o.prepTimeMinutes || 0), 0) / prepOrders.length) 
+    : 0;
+  const waitOrders = completedOrders.filter(o => (o.deliveryTimeMinutes || o.prepTimeMinutes || 0) > 0);
+  const avgWaitTimeMinutes = waitOrders.length > 0 
+    ? Math.round(waitOrders.reduce((sum, o) => sum + (o.deliveryTimeMinutes || o.prepTimeMinutes || 0), 0) / waitOrders.length) 
+    : 0;
 
   const operationalRecommendations = [
     {
-      title: 'Optimize Kitchen Station Batching',
-      detail: `Average kitchen prep time is ${avgPrepTimeMinutes} min. Grouping fry station orders during 1:00 PM - 3:00 PM peak hours reduces delay by ~22%.`,
-      impact: '-4 min prep time'
+      title: 'Kitchen Station Batching',
+      detail: avgPrepTimeMinutes > 0
+        ? `Average recorded kitchen prep time is ${avgPrepTimeMinutes} min across completed orders.`
+        : 'Track live ticket prep duration on KDS to establish kitchen station throughput baselines.',
+      impact: avgPrepTimeMinutes > 15 ? 'High Delay Risk' : (avgPrepTimeMinutes > 0 ? 'Optimal Flow' : 'Awaiting Data')
     },
     {
-      title: 'Adjust Delivery Driver Scheduling',
-      detail: `Active fleet of ${drivers.length || 3} drivers handles delivery load. Deploy 1 extra driver between 7:00 PM - 9:00 PM to maintain 25 min SLA.`,
-      impact: '+15% customer rating'
+      title: 'Delivery Driver Scheduling',
+      detail: drivers.length > 0 
+        ? `Active fleet of ${drivers.length} registered driver(s).` 
+        : 'No delivery drivers registered.',
+      impact: drivers.length > 0 
+        ? `${drivers.filter(d => d.status === 'available').length} available now` 
+        : 'Action Required'
     }
   ];
 
@@ -171,7 +183,7 @@ export function calculateAIBusinessPlatformAnalytics(data: AIPlatformDataPackage
           name: item.productName || 'Menu Item',
           count: item.quantity,
           revenue: item.totalPrice,
-          stock: 10
+          stock: 0
         };
       }
     });
@@ -196,14 +208,15 @@ export function calculateAIBusinessPlatformAnalytics(data: AIPlatformDataPackage
     };
   });
 
-  const peakHourItem = [...hourlySales].sort((a, b) => b.revenue - a.revenue)[0];
-  const slowHourItem = [...hourlySales].filter(h => h.hourLabel !== '2 AM' && h.hourLabel !== '3 AM').sort((a, b) => a.revenue - b.revenue)[0];
+  const activeHours = hourlySales.filter(h => h.orderCount > 0);
+  const peakHourItem = activeHours.length > 0 ? [...activeHours].sort((a, b) => b.revenue - a.revenue)[0] : null;
+  const slowHourItem = activeHours.length > 0 ? [...activeHours].sort((a, b) => a.revenue - b.revenue)[0] : null;
 
   // 5. INVENTORY ANALYST
   const lowStockIngredients = ingredients.filter(i => i.stock <= (i.minStockAlert || 5));
   const overstockedIngredients = ingredients.filter(i => i.stock > (i.minStockAlert || 5) * 4);
-  const totalInventoryValuation = ingredients.reduce((sum, i) => sum + (i.stock * i.costPerUnit), 0) +
-                                   products.reduce((sum, p) => sum + ((p.stock || 0) * (p.cost || p.price * 0.5)), 0);
+  const totalInventoryValuation = ingredients.reduce((sum, i) => sum + (i.stock * (i.costPerUnit || 0)), 0) +
+                                   products.reduce((sum, p) => sum + ((p.stock || 0) * (p.cost || (p.price || 0) * 0.5)), 0);
 
   const purchasingRecommendations = suppliers.map(s => {
     const suppIngs = ingredients.filter(i => i.supplierName === s.name || i.supplierId === s.id);
@@ -211,33 +224,30 @@ export function calculateAIBusinessPlatformAnalytics(data: AIPlatformDataPackage
     return {
       supplierId: s.id,
       supplierName: s.name,
-      contactPerson: s.contactPerson || 'Account Executive',
+      contactPerson: s.contactPerson || 'N/A',
       phone: s.phone || 'N/A',
       lowItemsCount: lowCount,
-      suggestedOrderValuation: suppIngs.reduce((sum, i) => sum + (Math.max(0, (i.minStockAlert || 5) * 2 - i.stock) * i.costPerUnit), 0)
+      suggestedOrderValuation: suppIngs.reduce((sum, i) => sum + (Math.max(0, (i.minStockAlert || 5) * 2 - i.stock) * (i.costPerUnit || 0)), 0)
     };
   }).filter(r => r.suggestedOrderValuation > 0 || r.lowItemsCount > 0);
 
   // 6. CUSTOMER ANALYST
-  const customerList = customers.length > 0 ? customers : [
-    { id: 'c1', name: 'Dr. Abdirahman Ali', phone: '+252 61 555 1234', membershipLevel: 'VIP', orderSummary: { totalOrders: 28, totalSpent: 840, lastOrderDate: '2026-07-29' } },
-    { id: 'c2', name: 'Fatima Hassan', phone: '+252 61 555 5678', membershipLevel: 'Gold', orderSummary: { totalOrders: 19, totalSpent: 520, lastOrderDate: '2026-07-28' } },
-    { id: 'c3', name: 'Mohamed Nur', phone: '+252 61 555 9012', membershipLevel: 'Silver', orderSummary: { totalOrders: 12, totalSpent: 310, lastOrderDate: '2026-07-25' } }
-  ];
+  const customerList = customers;
 
   const totalCustomerCount = customerList.length;
-  const vipCount = customerList.filter((c: any) => c.membershipLevel === 'VIP' || (c.orderSummary?.totalOrders || 0) > 20).length;
+  const vipCount = customerList.filter((c: any) => c.membershipLevel === 'VIP' || c.status === 'vip' || (c.totalOrders || c.orderSummary?.totalOrders || 0) >= 20).length;
 
-  const customerSatisfactionScore = feedbacks.length > 0 
-    ? Math.round((feedbacks.filter(f => f.rating >= 4).length / feedbacks.length) * 100)
-    : 92;
+  const ratedFeedbacks = feedbacks.filter(f => typeof f.rating === 'number' && f.rating > 0);
+  const customerSatisfactionScore = ratedFeedbacks.length > 0 
+    ? Math.round((ratedFeedbacks.filter(f => f.rating >= 4).length / ratedFeedbacks.length) * 100)
+    : (completedOrders.length > 0 ? 100 : 0);
 
   // 7. FORECASTING ENGINES
-  const projectedNextDaySales = Math.round((todayRevenue > 0 ? todayRevenue : (totalRevenue / Math.max(1, completedOrders.length)) * 15) * 1.08);
+  const projectedNextDaySales = Math.round((todayRevenue > 0 ? todayRevenue : (completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0)) * 1.08);
   const projected7DaySales = projectedNextDaySales * 7;
   const projected30DaySales = projectedNextDaySales * 30;
 
-  const projectedMonthlyExpenses = Math.round(totalExpenses > 0 ? totalExpenses * 1.02 : projected30DaySales * 0.55);
+  const projectedMonthlyExpenses = Math.round(totalExpenses > 0 ? totalExpenses * 1.02 : 0);
   const projectedMonthlyProfit = projected30DaySales - projectedMonthlyExpenses;
 
   // 8. AUTOMATED REAL-TIME AI ALERTS
@@ -344,8 +354,8 @@ export function calculateAIBusinessPlatformAnalytics(data: AIPlatformDataPackage
     bestSellingProducts,
     worstSellingProducts,
     hourlySales,
-    peakHourLabel: peakHourItem?.hourLabel || '1:00 PM',
-    slowHourLabel: slowHourItem?.hourLabel || '4:00 PM',
+    peakHourLabel: peakHourItem?.hourLabel || 'N/A',
+    slowHourLabel: slowHourItem?.hourLabel || 'N/A',
 
     // Inventory Analyst
     lowStockIngredients,

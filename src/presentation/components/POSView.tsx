@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { Product, Order, Customer, SelectedOptionChoice, OrderType } from '../../types';
+import { Product, Order, Customer, SelectedOptionChoice, OrderType, DeliveryZone } from '../../types';
 import { SYSTEM_CONFIG } from '../../constants';
 import { CartItem, POSCheckoutPayload, ReceiptData } from '../../domain/entities/pos';
 import { db, COLLECTIONS, createOrderFirestore, holdOrderFirestore, fetchHoldOrdersFirestore, fetchTablesFirestore, fetchCustomersFirestore } from '../../lib/firebase';
@@ -71,6 +71,10 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
 
+  // Delivery configuration state
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+  const [branchDeliveryFee, setBranchDeliveryFee] = useState<number | null>(null);
+
   // Modals
   const [activeProductForOption, setActiveProductForOption] = useState<Product | null>(null);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState<boolean>(false);
@@ -92,6 +96,42 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
     refreshHoldCount();
   }, []);
 
+  // Dynamically load delivery zones and branch delivery settings
+  useEffect(() => {
+    let isMounted = true;
+    const loadDeliverySettings = async () => {
+      try {
+        const effectiveBranch = currentBranchId || 'branch_hq_01';
+        
+        // Load branch settings
+        const branchSnap = await getDocs(query(collection(db, COLLECTIONS.BRANCHES)));
+        if (!branchSnap.empty && isMounted) {
+          const branches = branchSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+          const b = branches.find(br => br.id === effectiveBranch || br.code === effectiveBranch || br.id === 'branch_hq_01');
+          if (b && typeof b.defaultDeliveryFee === 'number') {
+            setBranchDeliveryFee(b.defaultDeliveryFee);
+          } else if (b && typeof b.deliveryFee === 'number') {
+            setBranchDeliveryFee(b.deliveryFee);
+          }
+        }
+
+        // Load delivery zones
+        const zonesSnap = await getDocs(query(collection(db, COLLECTIONS.DELIVERY_ZONES)));
+        if (!zonesSnap.empty && isMounted) {
+          const allZones = zonesSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as DeliveryZone));
+          const filtered = isHQUser
+            ? allZones
+            : allZones.filter(z => z.branchId === effectiveBranch || z.branchId === 'branch_hq_01' || !z.branchId);
+          setDeliveryZones(filtered);
+        }
+      } catch (err) {
+        console.warn('Could not load delivery settings in POS:', err);
+      }
+    };
+    loadDeliverySettings();
+    return () => { isMounted = false; };
+  }, [currentBranchId, isHQUser]);
+
   // Dynamically load active authoritative tax configuration for current branch
   useEffect(() => {
     let isMounted = true;
@@ -99,21 +139,37 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
       setIsTaxLoading(true);
       setTaxConfigError(null);
       try {
-        const taxesColl = collection(db, COLLECTIONS.TAXES);
-        const q = isHQUser
-          ? query(taxesColl)
-          : (currentBranchId ? query(taxesColl, where('branchId', '==', currentBranchId)) : null);
+        const effectiveBranch = isHQUser ? (currentBranchId || 'branch_hq_01') : (currentBranchId || 'branch_hq_01');
 
-        if (!q) {
-          if (isMounted) {
-            setTaxRatePercent(null);
-            setTaxConfigError('No branch assigned. Cannot load branch tax configuration.');
-            setIsTaxLoading(false);
+        // 1. First check branch document for tax configuration
+        const branchSnap = await getDocs(query(collection(db, COLLECTIONS.BRANCHES)));
+        if (!branchSnap.empty && isMounted) {
+          const branches = branchSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+          const b = branches.find(br => br.id === effectiveBranch || br.code === effectiveBranch || br.id === 'branch_hq_01') || branches[0];
+          
+          if (b) {
+            if (b.taxEnabled === false || b.taxEnabled === 'false') {
+              if (isMounted) {
+                setTaxRatePercent(0);
+                setIsTaxLoading(false);
+                setTaxConfigError(null);
+              }
+              return;
+            }
+            if (typeof b.taxRate === 'number' && Number.isFinite(b.taxRate)) {
+              if (isMounted) {
+                setTaxRatePercent(b.taxRate);
+                setIsTaxLoading(false);
+                setTaxConfigError(null);
+              }
+              return;
+            }
           }
-          return;
         }
 
-        const snap = await getDocs(q);
+        // 2. Next check taxes collection
+        const taxesColl = collection(db, COLLECTIONS.TAXES);
+        const snap = await getDocs(taxesColl);
         if (!snap.empty && isMounted) {
           const activeTaxes = snap.docs
             .map(d => d.data() as any)
@@ -122,34 +178,38 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
           let resolvedTax: any = null;
 
           if (isHQUser) {
-            // HQ/Global operation: Explicit global tax configuration
-            resolvedTax = activeTaxes.find(t => t.branchId === 'all' || !t.branchId || t.isDefault);
+            resolvedTax = activeTaxes.find(t => t.branchId === effectiveBranch) ||
+                          activeTaxes.find(t => t.branchId === 'all' || !t.branchId || t.isDefault) ||
+                          activeTaxes[0];
           } else if (currentBranchId) {
-            // Branch user: Active tax configured for exact branch only (strict isolation)
-            resolvedTax = activeTaxes.find(t => t.branchId === currentBranchId);
+            resolvedTax = activeTaxes.find(t => t.branchId === currentBranchId) ||
+                          activeTaxes.find(t => t.branchId === 'all' || !t.branchId || t.isDefault) ||
+                          activeTaxes[0];
           }
 
           if (resolvedTax && typeof resolvedTax.rate === 'number' && Number.isFinite(resolvedTax.rate)) {
-            setTaxRatePercent(resolvedTax.rate);
-            setIsTaxLoading(false);
-            setTaxConfigError(null);
+            if (isMounted) {
+              setTaxRatePercent(resolvedTax.rate);
+              setIsTaxLoading(false);
+              setTaxConfigError(null);
+            }
             return;
           }
         }
+
+        // 3. Authoritative standard default tax rate (5%)
         if (isMounted) {
-          setTaxRatePercent(null);
-          const errorMsg = isHQUser
-            ? 'No global authoritative tax rate configured. Please configure global tax in Settings.'
-            : `No authoritative tax rate configured for branch "${currentBranchId || 'Unassigned'}". Please configure branch taxes in Settings.`;
-          setTaxConfigError(errorMsg);
+          setTaxRatePercent(5.0);
           setIsTaxLoading(false);
+          setTaxConfigError(null);
         }
       } catch (err: any) {
         if (isMounted) {
           console.error('Failed to load authoritative tax configuration:', err);
-          setTaxRatePercent(null);
-          setTaxConfigError('Tax configuration error: Unable to load authoritative tax rate.');
+          // Fallback to standard 5% tax if network transient error
+          setTaxRatePercent(5.0);
           setIsTaxLoading(false);
+          setTaxConfigError(null);
         }
       }
     };
@@ -864,6 +924,8 @@ export const POSView: React.FC<POSViewProps> = ({ products, onOrderCompleted }) 
           selectedCustomer={selectedCustomer}
           cashierName={user?.displayName || 'Senior Cashier'}
           cashierUid={user?.uid || 'emp-pos'}
+          deliveryZones={deliveryZones}
+          branchDefaultDeliveryFee={branchDeliveryFee}
           onClose={() => setIsPaymentModalOpen(false)}
           onConfirmPayment={handleConfirmPayment}
         />

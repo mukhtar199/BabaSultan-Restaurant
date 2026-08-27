@@ -547,17 +547,21 @@ async function executePosCheckoutRestFallback(
     }
     const branchTaxes = (taxesDocs || []).filter((t: any) => 
       (t.isActive === true || t.status === 'Active' || t.status === 'active') && 
-      t.branchId === targetBranchId
+      (t.branchId === targetBranchId || t.branchId === 'all' || !t.branchId || t.isDefault)
     );
     if (branchTaxes.length > 0) {
-      const primaryTax = branchTaxes.find((t: any) => t.isPrimary === true || t.isDefault === true || t.taxType === 'vat' || t.taxType === 'sales_tax');
+      const primaryTax = branchTaxes.find((t: any) => t.branchId === targetBranchId) ||
+                         branchTaxes.find((t: any) => t.isPrimary === true || t.isDefault === true || t.taxType === 'vat' || t.taxType === 'sales_tax') ||
+                         branchTaxes[0];
       if (primaryTax && typeof primaryTax.rate === 'number') {
         const r = Number(primaryTax.rate || 0);
         configuredTaxRate = r > 1 ? r / 100 : r;
       }
     } else if (!isTaxExplicitlyEnabled && (!taxesDocs || taxesDocs.length === 0)) {
-      // No tax policy configured and tax not enabled on branch -> tax is optional/0
-      configuredTaxRate = 0;
+      // If branch does not have tax enabled and no tax documents exist
+      if (branchDoc && (branchDoc.taxEnabled === false || branchDoc.taxEnabled === 'false')) {
+        configuredTaxRate = 0;
+      }
     }
   }
 
@@ -591,7 +595,7 @@ async function executePosCheckoutRestFallback(
         throw new Error(`Delivery zone "${orderData.deliveryZoneId}" does not belong to branch "${targetBranchId}". Checkout rejected.`);
       }
 
-      if (zDoc.deliveryFeeEnabled === false || zDoc.deliveryFeeEnabled === 'false' || zDoc.deliveryFee === 0) {
+      if (zDoc.deliveryFeeEnabled === false || zDoc.deliveryFeeEnabled === 'false') {
         isDeliveryFeeEnabled = false;
       }
 
@@ -600,22 +604,30 @@ async function executePosCheckoutRestFallback(
       }
 
       if (isDeliveryFeeEnabled) {
-        const fee = typeof zDoc.baseDeliveryFee === 'number' ? zDoc.baseDeliveryFee : (typeof zDoc.deliveryFee === 'number' ? zDoc.deliveryFee : null);
-        if (fee === null || typeof fee !== 'number' || fee < 0) {
+        let rawZoneFee: any = null;
+        if (zDoc.baseDeliveryFee !== undefined && zDoc.baseDeliveryFee !== null) {
+          rawZoneFee = zDoc.baseDeliveryFee;
+        } else if (zDoc.deliveryFee !== undefined && zDoc.deliveryFee !== null) {
+          rawZoneFee = zDoc.deliveryFee;
+        }
+        if (rawZoneFee === null || rawZoneFee === undefined || typeof rawZoneFee !== 'number' || isNaN(rawZoneFee) || rawZoneFee < 0) {
           throw new Error(`Invalid fee configuration for delivery zone "${orderData.deliveryZoneId}". Checkout rejected.`);
         }
-        deliveryFee = Math.max(0, fee);
+        deliveryFee = Math.max(0, rawZoneFee);
       } else {
         deliveryFee = 0;
       }
     } else {
       if (isDeliveryFeeEnabled) {
-        let serverFee: number | null = null;
+        let serverFee: any = null;
         if (branchDoc) {
-          if (typeof branchDoc.defaultDeliveryFee === 'number') serverFee = branchDoc.defaultDeliveryFee;
-          else if (typeof branchDoc.deliveryFee === 'number') serverFee = branchDoc.deliveryFee;
+          if (branchDoc.defaultDeliveryFee !== undefined && branchDoc.defaultDeliveryFee !== null) {
+            serverFee = branchDoc.defaultDeliveryFee;
+          } else if (branchDoc.deliveryFee !== undefined && branchDoc.deliveryFee !== null) {
+            serverFee = branchDoc.deliveryFee;
+          }
         }
-        if (serverFee === null || typeof serverFee !== 'number' || serverFee < 0) {
+        if (serverFee === null || serverFee === undefined || typeof serverFee !== 'number' || isNaN(serverFee) || serverFee < 0) {
           throw new Error(`Delivery fee configuration not found for branch "${targetBranchId}". Please configure branch settings or specify a valid delivery zone. Checkout rejected.`);
         }
         deliveryFee = Math.max(0, serverFee);
@@ -1256,14 +1268,25 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
             branchDocs = branchTaxesStatusQuery.docs.map(d => d.data());
           }
         }
+        if (branchDocs.length === 0) {
+          const allTaxesQuery = await transaction.get(
+            db.collection('taxes').where('isActive', '==', true)
+          );
+          if (!allTaxesQuery.empty) {
+            branchDocs = allTaxesQuery.docs.map(d => d.data()).filter((t: any) => t.branchId === 'all' || !t.branchId || t.isDefault);
+          }
+        }
 
-        const primaryTax = branchDocs.find((t: any) => t.isPrimary === true || t.isDefault === true || t.taxType === 'vat' || t.taxType === 'sales_tax');
+        const primaryTax = branchDocs.find((t: any) => t.branchId === targetBranchId) ||
+                           branchDocs.find((t: any) => t.isPrimary === true || t.isDefault === true || t.taxType === 'vat' || t.taxType === 'sales_tax') ||
+                           branchDocs[0];
         if (primaryTax && typeof primaryTax.rate === 'number') {
           const r = Number(primaryTax.rate || 0);
           configuredTaxRate = r > 1 ? r / 100 : r;
         } else if (!isTaxExplicitlyEnabled) {
-          // No tax enabled on branch -> tax is 0
-          configuredTaxRate = 0;
+          if (branchData && (branchData.taxEnabled === false || branchData.taxEnabled === 'false')) {
+            configuredTaxRate = 0;
+          }
         }
       }
 
@@ -1305,7 +1328,7 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
             throw new Error(`Delivery zone "${orderData.deliveryZoneId}" does not belong to branch "${targetBranchId}". Checkout rejected.`);
           }
 
-          if (zData.deliveryFeeEnabled === false || zData.deliveryFeeEnabled === 'false' || zData.deliveryFee === 0 || zData.baseDeliveryFee === 0) {
+          if (zData.deliveryFeeEnabled === false || zData.deliveryFeeEnabled === 'false') {
             isDeliveryFeeEnabled = false;
           }
 
@@ -1314,23 +1337,31 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
           }
 
           if (isDeliveryFeeEnabled) {
-            const fee = typeof zData.baseDeliveryFee === 'number' ? zData.baseDeliveryFee : (typeof zData.deliveryFee === 'number' ? zData.deliveryFee : null);
-            if (fee === null || typeof fee !== 'number' || fee < 0) {
+            let rawZoneFee: any = null;
+            if (zData.baseDeliveryFee !== undefined && zData.baseDeliveryFee !== null) {
+              rawZoneFee = zData.baseDeliveryFee;
+            } else if (zData.deliveryFee !== undefined && zData.deliveryFee !== null) {
+              rawZoneFee = zData.deliveryFee;
+            }
+            if (rawZoneFee === null || rawZoneFee === undefined || typeof rawZoneFee !== 'number' || isNaN(rawZoneFee) || rawZoneFee < 0) {
               throw new Error(`Invalid fee configuration for delivery zone "${orderData.deliveryZoneId}". Checkout rejected.`);
             }
-            deliveryFee = Math.max(0, fee);
+            deliveryFee = Math.max(0, rawZoneFee);
           } else {
             deliveryFee = 0;
           }
         } else {
           if (isDeliveryFeeEnabled) {
-            let serverFee: number | null = null;
+            let serverFee: any = null;
             if (branchSnap.exists) {
               const bData = branchSnap.data()!;
-              if (typeof bData.defaultDeliveryFee === 'number') serverFee = bData.defaultDeliveryFee;
-              else if (typeof bData.deliveryFee === 'number') serverFee = bData.deliveryFee;
+              if (bData.defaultDeliveryFee !== undefined && bData.defaultDeliveryFee !== null) {
+                serverFee = bData.defaultDeliveryFee;
+              } else if (bData.deliveryFee !== undefined && bData.deliveryFee !== null) {
+                serverFee = bData.deliveryFee;
+              }
             }
-            if (serverFee === null || typeof serverFee !== 'number' || serverFee < 0) {
+            if (serverFee === null || serverFee === undefined || typeof serverFee !== 'number' || isNaN(serverFee) || serverFee < 0) {
               throw new Error(`Delivery fee configuration not found for branch "${targetBranchId}". Please configure branch settings or specify a valid delivery zone. Checkout rejected.`);
             }
             deliveryFee = Math.max(0, serverFee);
@@ -1403,6 +1434,19 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
       }
 
       const finalPaymentStatus = isPaidSale ? 'paid' : 'unpaid';
+
+      // Phase 1 (Reads) - Fetch Customer record if assigned
+      let customerRef: any = null;
+      let customerSnap: any = null;
+      let customerPointsRef: any = null;
+      let customerPointsSnap: any = null;
+
+      if (orderData.customerId) {
+        customerRef = db.collection('customers').doc(orderData.customerId);
+        customerSnap = await transaction.get(customerRef);
+        customerPointsRef = db.collection('customer_points').doc(orderData.customerId);
+        customerPointsSnap = await transaction.get(customerPointsRef);
+      }
 
       const newOrderRef = db.collection('orders').doc();
       const timestamp = new Date().toISOString();
@@ -1584,6 +1628,44 @@ export async function handlePosCheckout(req: express.Request, res: express.Respo
           createdAt: timestamp,
           updatedAt: timestamp
         }));
+      }
+
+      // Update Customer Loyalty & Spending Stats if Customer Assigned
+      if (customerRef && customerSnap && customerSnap.exists) {
+        const cData = customerSnap.data() || {};
+        const oldTotalSpent = Number(cData.totalSpent ?? cData.totalSpending ?? 0);
+        const oldOrdersCount = Number(cData.totalOrders ?? 0);
+        const newTotalSpent = Math.round((oldTotalSpent + realTotalAmount) * 100) / 100;
+        const newOrdersCount = oldOrdersCount + 1;
+        const pointsEarned = Math.floor(realTotalAmount);
+
+        let membershipLevel = cData.membershipLevel || 'Bronze';
+        if (newTotalSpent >= 1000) membershipLevel = 'Platinum';
+        else if (newTotalSpent >= 500) membershipLevel = 'Gold';
+        else if (newTotalSpent >= 200) membershipLevel = 'Silver';
+
+        transaction.update(customerRef, cleanUndefined({
+          totalSpent: newTotalSpent,
+          totalSpending: newTotalSpent,
+          totalOrders: newOrdersCount,
+          membershipLevel,
+          lastOrderDate: timestamp,
+          loyaltyPoints: (cData.loyaltyPoints || 0) + pointsEarned,
+          updatedAt: timestamp
+        }));
+
+        if (customerPointsRef) {
+          const oldPoints = customerPointsSnap && customerPointsSnap.exists ? Number(customerPointsSnap.data()?.points || 0) : Number(cData.loyaltyPoints || 0);
+          transaction.set(customerPointsRef, cleanUndefined({
+            id: orderData.customerId,
+            customerId: orderData.customerId,
+            customerName: cData.fullName || cData.name || fullOrder.customerName || 'Customer',
+            points: oldPoints + pointsEarned,
+            tier: membershipLevel,
+            totalEarned: (customerPointsSnap && customerPointsSnap.exists ? Number(customerPointsSnap.data()?.totalEarned || 0) : 0) + pointsEarned,
+            updatedAt: timestamp
+          }), { merge: true });
+        }
       }
 
       // Create Double-Entry Accounting Journal Entry & Ledger Lines

@@ -785,7 +785,8 @@ export const AIOperationsManagerView: React.FC<Props> = ({ language: initialLang
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {orders.filter(o => o.status === 'pending' || o.prepStatus === 'preparing' || o.prepStatus === 'new').map(ord => {
-                const prepMinutes = ord.prepTimeMinutes || 12;
+                const elapsedFromCreated = ord.createdAt ? Math.max(1, Math.round((Date.now() - new Date(ord.createdAt).getTime()) / 60000)) : 0;
+                const prepMinutes = ord.prepTimeMinutes || elapsedFromCreated;
                 const isDelayed = prepMinutes > (ord.targetPrepTimeMinutes || 15);
 
                 return (

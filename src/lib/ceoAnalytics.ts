@@ -177,30 +177,30 @@ export function calculateCEOAnalytics(data: CEODataPackage) {
   const worstSellingProducts = sortedProducts.slice(-3).reverse();
 
   // 3. CUSTOMER SATISFACTION
-  const ratedOrders = orders.filter(o => o.rating && o.rating > 0);
+  const ratedOrders = orders.filter(o => typeof o.rating === 'number' && o.rating > 0);
   const avgCustomerRating = ratedOrders.length > 0 
-    ? Number((ratedOrders.reduce((sum, o) => sum + (o.rating || 5), 0) / ratedOrders.length).toFixed(1)) 
-    : 4.8;
-  const customerSatisfactionPercentage = Math.round((avgCustomerRating / 5) * 100);
+    ? Number((ratedOrders.reduce((sum, o) => sum + (o.rating || 0), 0) / ratedOrders.length).toFixed(1)) 
+    : 0;
+  const customerSatisfactionPercentage = ratedOrders.length > 0 ? Math.round((avgCustomerRating / 5) * 100) : 0;
 
   // 4. KITCHEN & DELIVERY PERFORMANCE
   const delayedOrders = orders.filter(o => (o.prepTimeMinutes || 0) > (o.targetPrepTimeMinutes || 15));
   const delayedOrdersCount = delayedOrders.length;
   const kitchenPrepStatus = delayedOrdersCount > 2 ? 'Overloaded' : delayedOrdersCount > 0 ? 'Busy' : 'Optimal';
 
-  const totalDeliveries = orders.filter(o => o.orderType === 'delivery').length || 10;
+  const totalDeliveries = orders.filter(o => o.orderType === 'delivery').length;
   const failedDeliveries = orders.filter(o => o.deliveryStatus === 'failed').length;
-  const deliverySuccessRatePercentage = totalDeliveries > 0 ? Math.round(((totalDeliveries - failedDeliveries) / totalDeliveries) * 100) : 98;
-  const activeDriversCount = drivers.filter(d => d.status === 'available' || d.status === 'in_transit').length || 3;
+  const deliverySuccessRatePercentage = totalDeliveries > 0 ? Math.round(((totalDeliveries - failedDeliveries) / totalDeliveries) * 100) : 0;
+  const activeDriversCount = drivers.filter(d => d.status === 'available' || d.status === 'in_transit').length;
 
   // 5. INVENTORY & EMPLOYEE PERFORMANCE
   const lowStockItemsCount = products.filter(p => p.stock <= p.minStockAlert).length + ingredients.filter(i => i.stock <= i.minStockAlert).length;
   const totalInventoryValuation = products.reduce((sum, p) => sum + (p.stock * p.cost), 0) + ingredients.reduce((sum, i) => sum + (i.stock * i.costPerUnit), 0);
 
-  const presentCount = attendance.filter(a => a.status === 'present').length || (employees.length - 1);
-  const lateCount = attendance.filter(a => a.status === 'late').length || 1;
-  const totalStaff = employees.length || 4;
-  const employeeAttendanceRate = Math.round(((presentCount + lateCount) / (totalStaff || 1)) * 100);
+  const presentCount = attendance.filter(a => a.status === 'present').length;
+  const lateCount = attendance.filter(a => a.status === 'late').length;
+  const totalStaff = employees.length;
+  const employeeAttendanceRate = totalStaff > 0 ? Math.round(((presentCount + lateCount) / totalStaff) * 100) : 0;
 
   // 6. CASH FLOW & LIQUIDITY
   const totalIncome = bankTransactions.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0) + totalRevenue;
@@ -208,15 +208,15 @@ export function calculateCEOAnalytics(data: CEODataPackage) {
   const cashFlowBalance = totalIncome - totalOutflow;
 
   // 7. COMPUTE BUSINESS HEALTH SCORE (0 - 100)
-  const salesScore = Math.min(100, Math.max(20, Math.round((todayRevenue / 500) * 100)));
-  const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 22;
-  const profitScore = Math.min(100, Math.max(10, Math.round((netMargin / 25) * 100)));
+  const salesScore = Math.min(100, Math.max(0, Math.round((todayRevenue / 500) * 100)));
+  const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+  const profitScore = Math.min(100, Math.max(0, Math.round((netMargin / 25) * 100)));
   const customerSatisfactionScore = customerSatisfactionPercentage;
   const inventoryScore = lowStockItemsCount === 0 ? 100 : Math.max(30, 100 - (lowStockItemsCount * 15));
   const employeeProductivityScore = employeeAttendanceRate;
   const deliveryPerformanceScore = deliverySuccessRatePercentage;
-  const wasteControlScore = 90; // Optimized waste controls
-  const cashFlowScore = cashFlowBalance > 0 ? 95 : 40;
+  const wasteControlScore = 100;
+  const cashFlowScore = cashFlowBalance >= 0 ? 95 : 40;
 
   const rawHealthScore = Math.round(
     (salesScore * 0.20) +

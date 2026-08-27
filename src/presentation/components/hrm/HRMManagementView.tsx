@@ -456,7 +456,7 @@ export const HRMManagementView: React.FC = () => {
 
             <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 shadow-lg">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Attendance Rate</span>
-              <p className="text-2xl font-black text-emerald-400">{analytics?.todayAttendanceRate || 100}%</p>
+              <p className="text-2xl font-black text-emerald-400">{analytics?.todayAttendanceRate ?? 0}%</p>
               <span className="text-[10px] text-slate-400 font-semibold">Today's Clocked In</span>
             </div>
 

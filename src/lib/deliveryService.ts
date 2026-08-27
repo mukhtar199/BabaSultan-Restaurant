@@ -225,23 +225,31 @@ export async function addTrackingPoint(
 // Delivery Zones CRUD
 export async function createDeliveryZone(zoneData: Omit<DeliveryZone, 'id' | 'createdAt'>): Promise<string> {
   const newRef = doc(collection(db, COLLECTIONS.DELIVERY_ZONES));
-  let effectiveBranchId = zoneData.branchId;
-  if (!effectiveBranchId && typeof window !== 'undefined') {
+  let rawBranch = zoneData.branchId;
+  if (!rawBranch && typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem('user_profile');
       if (stored) {
         const u = JSON.parse(stored);
-        effectiveBranchId = u.branchId || u.branch;
+        rawBranch = u.branchId || u.branch;
       }
     } catch {}
   }
+  const effectiveBranchId = getCanonicalBranchId(rawBranch);
   if (!effectiveBranchId) {
-    throw new Error('Branch ID is required to create a delivery zone.');
+    throw new Error('Unable to determine your branch. Please reload your account profile or contact an administrator.');
   }
+
+  const rawFee = typeof zoneData.baseDeliveryFee === 'number' 
+    ? zoneData.baseDeliveryFee 
+    : (typeof (zoneData as any).deliveryFee === 'number' ? (zoneData as any).deliveryFee : 0);
+  const validatedFee = Number.isFinite(rawFee) && rawFee >= 0 ? rawFee : 0;
 
   const newZone: DeliveryZone = {
     ...zoneData,
     branchId: effectiveBranchId,
+    branchName: zoneData.branchName || getBranchDisplayName(effectiveBranchId),
+    baseDeliveryFee: validatedFee,
     id: newRef.id,
     createdAt: new Date().toISOString()
   };
@@ -250,7 +258,18 @@ export async function createDeliveryZone(zoneData: Omit<DeliveryZone, 'id' | 'cr
 }
 
 export async function updateDeliveryZone(zoneId: string, updates: Partial<DeliveryZone>): Promise<void> {
-  await setDoc(doc(db, COLLECTIONS.DELIVERY_ZONES, zoneId), updates, { merge: true });
+  const normalizedUpdates: Partial<DeliveryZone> = { ...updates };
+  if (updates.branchId || (updates as any)?.branch) {
+    const canon = getCanonicalBranchId(updates.branchId || (updates as any)?.branch);
+    if (canon) {
+      normalizedUpdates.branchId = canon;
+      normalizedUpdates.branchName = updates.branchName || getBranchDisplayName(canon);
+    }
+  }
+  if (typeof updates.baseDeliveryFee === 'number') {
+    normalizedUpdates.baseDeliveryFee = Number.isFinite(updates.baseDeliveryFee) && updates.baseDeliveryFee >= 0 ? updates.baseDeliveryFee : 0;
+  }
+  await setDoc(doc(db, COLLECTIONS.DELIVERY_ZONES, zoneId), normalizedUpdates, { merge: true });
 }
 
 export async function deleteDeliveryZone(zoneId: string): Promise<void> {
@@ -289,26 +308,26 @@ export function calculateDeliveryAnalytics(deliveries: DeliveryOrder[], drivers:
   const totalVolume = deliveries.reduce((sum, d) => sum + (d.totalAmount || 0), 0);
 
   // Avg Delivery Time calculation
-  const completedWithTimes = completed.filter((d) => d.actualDeliveryTimeMinutes || (d.deliveredAt && d.createdAt));
+  const completedWithTimes = completed.filter((d) => (d.actualDeliveryTimeMinutes && d.actualDeliveryTimeMinutes > 0) || (d.deliveredAt && d.createdAt));
   const avgDeliveryTime = completedWithTimes.length > 0
     ? Math.round(
         completedWithTimes.reduce((sum, d) => {
           if (d.actualDeliveryTimeMinutes) return sum + d.actualDeliveryTimeMinutes;
           if (d.deliveredAt && d.createdAt) {
             const mins = (new Date(d.deliveredAt).getTime() - new Date(d.createdAt).getTime()) / 60000;
-            return sum + Math.min(60, Math.max(10, mins));
+            return sum + Math.min(120, Math.max(1, mins));
           }
-          return sum + 25;
+          return sum;
         }, 0) / completedWithTimes.length
       )
-    : 26;
+    : 0;
 
   // On Time Rate %
   const onTimeCount = completed.filter((d) => {
-    const timeTaken = d.actualDeliveryTimeMinutes || 25;
-    return timeTaken <= (d.estimatedDeliveryTimeMinutes || 30);
+    if (!d.actualDeliveryTimeMinutes) return false;
+    return d.actualDeliveryTimeMinutes <= (d.estimatedDeliveryTimeMinutes || 30);
   }).length;
-  const onTimeRate = completed.length > 0 ? Math.round((onTimeCount / completed.length) * 100) : 94;
+  const onTimeRate = completed.length > 0 ? Math.round((onTimeCount / completed.length) * 100) : 0;
 
   // Driver Performance Leaderboard
   const driverPerformance = drivers.map((drv) => {
@@ -316,8 +335,8 @@ export function calculateDeliveryAnalytics(deliveries: DeliveryOrder[], drivers:
     const drvCompleted = drvDeliveries.filter((d) => d.status === 'delivered');
     const drvFailed = drvDeliveries.filter((d) => d.status === 'failed' || d.status === 'returned');
     const totalFeesEarned = drvCompleted.reduce((sum, d) => sum + ((d.deliveryFee || 0) * 0.7), 0); // 70% to driver
-    const ratings = drvCompleted.filter((d) => d.customerRating).map((d) => d.customerRating!);
-    const avgRating = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : (drv.rating || 4.8).toFixed(1);
+    const ratings = drvCompleted.filter((d) => typeof d.customerRating === 'number' && d.customerRating > 0).map((d) => d.customerRating!);
+    const avgRating = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : (drv.rating ? drv.rating.toFixed(1) : '0.0');
 
     return {
       driverId: drv.id,

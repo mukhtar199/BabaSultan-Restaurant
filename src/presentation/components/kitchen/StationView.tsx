@@ -128,7 +128,7 @@ export const StationView: React.FC<StationViewProps> = ({
             </div>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
               <span>Assigned Chef: <strong className="text-amber-400">{currentStation.assignedChef || 'Line Chef'}</strong></span>
-              <span>• Avg Prep: <strong className="text-white">{currentStation.avgPrepTimeMinutes || 12} mins</strong></span>
+              <span>• Avg Prep: <strong className="text-white">{currentStation.avgPrepTimeMinutes ? `${currentStation.avgPrepTimeMinutes} mins` : 'N/A'}</strong></span>
             </p>
           </div>
         </div>
