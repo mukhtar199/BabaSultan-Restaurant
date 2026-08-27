@@ -12,6 +12,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db, COLLECTIONS, getAuthToken, getEffectiveBranchId } from '../../lib/firebase';
+import { getApiUrl } from '../../lib/apiConfig';
 import { getMogadishuDateString } from '../../lib/dateUtils';
 import { IHRMRepository } from '../../domain/repositories/IHRMRepository';
 import {
@@ -446,7 +447,7 @@ export class HRMRepositoryImpl implements IHRMRepository {
 
     try {
       const token = await getAuthToken();
-      await fetch('/api/salaries', {
+      await fetch(getApiUrl('/api/salaries'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

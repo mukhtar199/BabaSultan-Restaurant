@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../../lib/firebase';
+import { getApiUrl } from '../../lib/apiConfig';
 import { useAuth } from '../context/AuthContext';
 import { USER_ROLES, UserRole, LANGUAGES, SupportedLanguage } from '../../constants';
 import {
@@ -108,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({ onMobileMenuToggle, onOpenSetupW
     try {
       setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
       const token = await user?.getIdToken();
-      await fetch(`/api/notifications/${notifId}/read`, {
+      await fetch(getApiUrl(`/api/notifications/${notifId}/read`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

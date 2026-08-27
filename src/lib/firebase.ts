@@ -52,6 +52,7 @@ import {
   JournalEntry,
   DeliveryDriver
 } from '../types';
+import { getApiUrl } from './apiConfig';
 
 // Build active Firebase config using Environment Variables if present, otherwise default to config JSON
 const env = (import.meta as any).env || {};
@@ -199,7 +200,7 @@ export const COLLECTIONS = {
 
 export async function executeAIActionFirestore(actionType: string, payload: any) {
   const token = await getAuthToken();
-  const response = await fetch('/api/ai/execute-action', {
+  const response = await fetch(getApiUrl('/api/ai/execute-action'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -218,7 +219,7 @@ export async function executeAIActionFirestore(actionType: string, payload: any)
 
 export async function addExpenseFirestore(data: Omit<Expense, 'id' | 'createdAt'>) {
   const token = await getAuthToken();
-  const response = await fetch('/api/expenses', {
+  const response = await fetch(getApiUrl('/api/expenses'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -238,7 +239,7 @@ export async function addExpenseFirestore(data: Omit<Expense, 'id' | 'createdAt'
 
 export async function addPurchaseFirestore(data: Omit<Purchase, 'id' | 'createdAt'>) {
   const token = await getAuthToken();
-  const response = await fetch('/api/purchases', {
+  const response = await fetch(getApiUrl('/api/purchases'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -258,7 +259,7 @@ export async function addPurchaseFirestore(data: Omit<Purchase, 'id' | 'createdA
 
 export async function addSalaryFirestore(data: Omit<SalaryPayment, 'id' | 'paidDate'>) {
   const token = await getAuthToken();
-  const response = await fetch('/api/salaries', {
+  const response = await fetch(getApiUrl('/api/salaries'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -278,7 +279,7 @@ export async function addSalaryFirestore(data: Omit<SalaryPayment, 'id' | 'paidD
 
 export async function recordInventoryMovementFirestore(data: Omit<InventoryMovement, 'id' | 'createdAt'>) {
   const token = await getAuthToken();
-  const response = await fetch('/api/inventory/adjust', {
+  const response = await fetch(getApiUrl('/api/inventory/adjust'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -298,7 +299,7 @@ export async function recordInventoryMovementFirestore(data: Omit<InventoryMovem
 
 export async function updateProductStockFirestore(productId: string, newStock: number) {
   const token = await getAuthToken();
-  const response = await fetch('/api/inventory/stock', {
+  const response = await fetch(getApiUrl('/api/inventory/stock'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -323,7 +324,7 @@ export async function addRefundFirestore(data: Omit<CustomerRefund, 'id' | 'crea
   }
 
   const token = await getAuthToken();
-  const response = await fetch(`/api/orders/${data.orderId}/refund`, {
+  const response = await fetch(getApiUrl(`/api/orders/${data.orderId}/refund`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -347,7 +348,7 @@ export async function addRefundFirestore(data: Omit<CustomerRefund, 'id' | 'crea
 
 export async function addBankTransactionFirestore(data: Omit<BankTransaction, 'id' | 'createdAt'>) {
   const token = await getAuthToken();
-  const response = await fetch('/api/bank-transactions', {
+  const response = await fetch(getApiUrl('/api/bank-transactions'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -398,7 +399,7 @@ export async function logActivityFirestore(logData: { action: string; details?: 
       action: logData.action,
       details: logData.details || ''
     };
-    const response = await fetch('/api/audit/activity', {
+    const response = await fetch(getApiUrl('/api/audit/activity'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -483,7 +484,7 @@ export async function updateProductFirestore(productId: string, data: Partial<Pr
   if (stock !== undefined) {
     try {
       const token = await getAuthToken();
-      await fetch('/api/inventory/stock', {
+      await fetch(getApiUrl('/api/inventory/stock'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -596,7 +597,7 @@ export async function updateIngredientFirestore(ingredientId: string, data: Part
     const qty = stock !== undefined ? stock : currentQuantity !== undefined ? currentQuantity : currentStockUsageUnit;
     try {
       const token = await getAuthToken();
-      await fetch('/api/inventory/adjust', {
+      await fetch(getApiUrl('/api/inventory/adjust'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -777,7 +778,7 @@ export async function createOrderFirestore(orderData: Omit<Order, 'id'>): Promis
     }
   }
 
-  const response = await fetch('/api/pos/complete', {
+  const response = await fetch(getApiUrl('/api/pos/complete'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -810,7 +811,7 @@ export async function postCancellationReversalJournalFirestore(order: Order, rea
 
 export async function updateOrderFirestore(orderId: string, data: Partial<Order>): Promise<void> {
   const token = await getAuthToken();
-  const response = await fetch(`/api/orders/${orderId}/update`, {
+  const response = await fetch(getApiUrl(`/api/orders/${orderId}/update`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -830,7 +831,7 @@ export async function updateOrderStatusFirestore(orderId: string, status: OrderS
 
   if (status === 'cancelled') {
     const token = await getAuthToken();
-    const response = await fetch(`/api/orders/${orderId}/cancel`, {
+    const response = await fetch(getApiUrl(`/api/orders/${orderId}/cancel`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -860,7 +861,7 @@ export async function updateOrderStatusFirestore(orderId: string, status: OrderS
 
 export async function updateKitchenStatusFirestore(ticketId: string, status: string): Promise<void> {
   const token = await getAuthToken();
-  const response = await fetch(`/api/kitchen/${ticketId}/status`, {
+  const response = await fetch(getApiUrl(`/api/kitchen/${ticketId}/status`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -877,7 +878,7 @@ export async function updateKitchenStatusFirestore(ticketId: string, status: str
 
 export async function updateKitchenTicketFirestore(ticketId: string, updates: Record<string, any>): Promise<void> {
   const token = await getAuthToken();
-  const response = await fetch(`/api/kitchen/${ticketId}/update`, {
+  const response = await fetch(getApiUrl(`/api/kitchen/${ticketId}/update`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -895,7 +896,7 @@ export async function updateKitchenTicketFirestore(ticketId: string, updates: Re
 export async function rechargeWalletFirestore(payload: { customerId: string; amount: number; paymentMethod?: string; notes?: string; customerName?: string; idempotencyKey?: string }): Promise<any> {
   const token = await getAuthToken();
   const idempKey = payload.idempotencyKey || `recharge_${payload.customerId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  const response = await fetch('/api/crm/wallet/recharge', {
+  const response = await fetch(getApiUrl('/api/crm/wallet/recharge'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -915,7 +916,7 @@ export async function rechargeWalletFirestore(payload: { customerId: string; amo
 export async function deductWalletFirestore(payload: { customerId: string; amount: number; orderId?: string; notes?: string; idempotencyKey?: string }): Promise<any> {
   const token = await getAuthToken();
   const idempKey = payload.idempotencyKey || `deduct_${payload.customerId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  const response = await fetch('/api/crm/wallet/deduct', {
+  const response = await fetch(getApiUrl('/api/crm/wallet/deduct'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -935,7 +936,7 @@ export async function deductWalletFirestore(payload: { customerId: string; amoun
 export async function refundToWalletFirestore(payload: { customerId: string; amount: number; orderId: string; reason?: string; idempotencyKey?: string }): Promise<any> {
   const token = await getAuthToken();
   const idempKey = payload.idempotencyKey || `refund_${payload.customerId}_${payload.orderId}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  const response = await fetch('/api/crm/wallet/refund', {
+  const response = await fetch(getApiUrl('/api/crm/wallet/refund'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -954,7 +955,7 @@ export async function refundToWalletFirestore(payload: { customerId: string; amo
 
 export async function updateDeliveryStatusFirestore(deliveryId: string, status: string, driverId?: string, failureReason?: string): Promise<void> {
   const token = await getAuthToken();
-  const response = await fetch(`/api/deliveries/${deliveryId}/status`, {
+  const response = await fetch(getApiUrl(`/api/deliveries/${deliveryId}/status`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -971,7 +972,7 @@ export async function updateDeliveryStatusFirestore(deliveryId: string, status: 
 
 export async function assignDeliveryDriverFirestore(deliveryId: string, driverId: string, driverName?: string, driverPhone?: string): Promise<void> {
   const token = await getAuthToken();
-  const response = await fetch(`/api/deliveries/${deliveryId}/assign`, {
+  const response = await fetch(getApiUrl(`/api/deliveries/${deliveryId}/assign`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

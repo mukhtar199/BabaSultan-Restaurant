@@ -76,13 +76,15 @@ function isOriginAllowed(origin?: string): boolean {
     if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') {
       return true;
     }
-    // Allow Google Cloud Run, Firebase Hosting, and Google AI Studio domains
+    // Allow Google Cloud Run, Firebase Hosting, Google AI Studio, and Vercel production domains
     if (
       host.endsWith('.run.app') ||
       host.endsWith('.web.app') ||
       host.endsWith('.firebaseapp.com') ||
       host.endsWith('.aistudio.google.com') ||
-      host.endsWith('.google.com')
+      host.endsWith('.google.com') ||
+      host.endsWith('.vercel.app') ||
+      host === 'baba-sultan-restaurant.vercel.app'
     ) {
       return true;
     }

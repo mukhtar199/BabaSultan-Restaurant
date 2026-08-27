@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { auth } from '../lib/firebase';
+import { getApiUrl } from '../lib/apiConfig';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -222,7 +223,7 @@ export const AIFinancialAdvisorView: React.FC<AIFinancialAdvisorViewProps> = ({
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/ai/execute-action', {
+      const response = await fetch(getApiUrl('/api/ai/execute-action'), {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -271,7 +272,7 @@ export const AIFinancialAdvisorView: React.FC<AIFinancialAdvisorViewProps> = ({
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/ai-chat', {
+      const response = await fetch(getApiUrl('/api/ai-chat'), {
         method: 'POST',
         headers,
         body: JSON.stringify({

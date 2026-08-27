@@ -14,6 +14,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, COLLECTIONS, recordInventoryMovementFirestore, getAuthToken } from '../../lib/firebase';
+import { getApiUrl } from '../../lib/apiConfig';
 import { IInventoryRepository } from '../../domain/repositories/IInventoryRepository';
 import {
   InventoryItem,
@@ -102,7 +103,7 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
         itemData.expirationDate
       );
 
-      const res = await fetch('/api/inventory/items', {
+      const res = await fetch(getApiUrl('/api/inventory/items'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,7 +128,7 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   async updateInventoryItem(id: string, updateData: Partial<InventoryItem>): Promise<void> {
     try {
       const token = await getAuthToken();
-      const res = await fetch(`/api/inventory/items/${id}/update`, {
+      const res = await fetch(getApiUrl(`/api/inventory/items/${id}/update`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +150,7 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   async deleteInventoryItem(id: string): Promise<void> {
     try {
       const token = await getAuthToken();
-      const res = await fetch(`/api/inventory/items/${id}/delete`, {
+      const res = await fetch(getApiUrl(`/api/inventory/items/${id}/delete`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -246,7 +247,7 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   async createPurchaseOrder(poData: Omit<PurchaseOrder, 'id' | 'createdAt' | 'updatedAt'>): Promise<PurchaseOrder> {
     try {
       const token = await getAuthToken();
-      const res = await fetch('/api/purchases/orders', {
+      const res = await fetch(getApiUrl('/api/purchases/orders'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -271,7 +272,7 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   async updatePurchaseOrder(id: string, poData: Partial<PurchaseOrder>): Promise<void> {
     try {
       const token = await getAuthToken();
-      const res = await fetch(`/api/purchases/orders/${id}/update`, {
+      const res = await fetch(getApiUrl(`/api/purchases/orders/${id}/update`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -293,7 +294,7 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   async approvePurchaseOrder(id: string, approvedBy: string): Promise<void> {
     try {
       const token = await getAuthToken();
-      const res = await fetch(`/api/purchases/orders/${id}/approve`, {
+      const res = await fetch(getApiUrl(`/api/purchases/orders/${id}/approve`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -319,7 +320,7 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   ): Promise<void> {
     try {
       const token = await getAuthToken();
-      const res = await fetch('/api/purchases/receive', {
+      const res = await fetch(getApiUrl('/api/purchases/receive'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -432,7 +433,7 @@ export class InventoryRepositoryImpl implements IInventoryRepository {
   async recordSupplierPayment(paymentData: Omit<SupplierPayment, 'id' | 'createdAt'>): Promise<SupplierPayment> {
     try {
       const token = await getAuthToken();
-      const res = await fetch('/api/purchases/supplier-payment', {
+      const res = await fetch(getApiUrl('/api/purchases/supplier-payment'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

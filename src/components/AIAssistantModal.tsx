@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { auth } from '../lib/firebase';
+import { getApiUrl } from '../lib/apiConfig';
 import { ChatMessage, Language } from '../types';
 import { translations, detectLanguage } from '../lib/i18n';
 import {
@@ -100,7 +101,7 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/ai-chat', {
+      const response = await fetch(getApiUrl('/api/ai-chat'), {
         method: 'POST',
         headers,
         body: JSON.stringify({

@@ -12,6 +12,7 @@ import {
   addDoc
 } from 'firebase/firestore';
 import { db, auth, COLLECTIONS, rechargeWalletFirestore, deductWalletFirestore, refundToWalletFirestore } from '../../lib/firebase';
+import { getApiUrl } from '../../lib/apiConfig';
 import { ICustomerRepository } from '../../domain/repositories/ICustomerRepository';
 import {
   Customer,
@@ -308,7 +309,7 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch('/api/crm/points/add', {
+    const res = await fetch(getApiUrl('/api/crm/points/add'), {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -341,7 +342,7 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch('/api/crm/rewards', {
+    const res = await fetch(getApiUrl('/api/crm/rewards'), {
       method: 'POST',
       headers,
       body: JSON.stringify(data)
@@ -360,7 +361,7 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`/api/crm/rewards/${id}`, {
+    const res = await fetch(getApiUrl(`/api/crm/rewards/${id}`), {
       method: 'PATCH',
       headers,
       body: JSON.stringify(data)
@@ -377,7 +378,7 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch('/api/crm/points/redeem', {
+    const res = await fetch(getApiUrl('/api/crm/points/redeem'), {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -414,7 +415,7 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch('/api/crm/coupons', {
+    const res = await fetch(getApiUrl('/api/crm/coupons'), {
       method: 'POST',
       headers,
       body: JSON.stringify(data)
@@ -433,7 +434,7 @@ export class CustomerRepositoryImpl implements ICustomerRepository {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`/api/crm/coupons/${id}`, {
+    const res = await fetch(getApiUrl(`/api/crm/coupons/${id}`), {
       method: 'PATCH',
       headers,
       body: JSON.stringify(data)

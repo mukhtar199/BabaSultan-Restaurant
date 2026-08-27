@@ -12,6 +12,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, COLLECTIONS, assignDeliveryDriverFirestore, updateDeliveryStatusFirestore, getAuthToken } from './firebase';
+import { getApiUrl } from './apiConfig';
 import { getCanonicalBranchId, getBranchDisplayName } from './branchUtils';
 import { 
   DeliveryDriver, 
@@ -89,7 +90,7 @@ export async function createDeliveryOrder(
   deliveryData: Omit<DeliveryOrder, 'id' | 'deliveryNumber' | 'createdAt' | 'status'>
 ): Promise<string> {
   const token = await getAuthToken();
-  const res = await fetch('/api/deliveries', {
+  const res = await fetch(getApiUrl('/api/deliveries'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -160,7 +161,7 @@ export async function updateDeliveryStatus(
 export async function rateDelivery(deliveryId: string, rating: number, feedback?: string): Promise<void> {
   try {
     const token = await getAuthToken();
-    const response = await fetch(`/api/deliveries/${deliveryId}/rating`, {
+    const response = await fetch(getApiUrl(`/api/deliveries/${deliveryId}/rating`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -196,7 +197,7 @@ export async function addTrackingPoint(
 
   try {
     const token = await getAuthToken();
-    const response = await fetch(`/api/deliveries/${deliveryId}/tracking`, {
+    const response = await fetch(getApiUrl(`/api/deliveries/${deliveryId}/tracking`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -282,7 +283,7 @@ export async function sendDeliveryNotification(
 ): Promise<void> {
   try {
     const token = await getAuthToken();
-    await fetch('/api/deliveries/notifications', {
+    await fetch(getApiUrl('/api/deliveries/notifications'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

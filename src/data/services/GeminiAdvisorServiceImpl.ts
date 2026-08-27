@@ -1,5 +1,6 @@
 import { IAIService, AIChatResponse } from '../../domain/services/IAIService';
 import { auth } from '../../lib/firebase';
+import { getApiUrl } from '../../lib/apiConfig';
 
 export class GeminiAdvisorServiceImpl implements IAIService {
   async askAIAdvisor(prompt: string, language: string, currentData: any): Promise<AIChatResponse> {
@@ -11,7 +12,7 @@ export class GeminiAdvisorServiceImpl implements IAIService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const res = await fetch('/api/ai-chat', {
+    const res = await fetch(getApiUrl('/api/ai-chat'), {
       method: 'POST',
       headers,
       body: JSON.stringify({

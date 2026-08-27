@@ -25,6 +25,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { updateDeliveryStatusFirestore } from '../../../lib/firebase';
+import { getApiUrl } from '../../../lib/apiConfig';
 
 interface OtherRolesViewProps {
   role: string;
@@ -235,7 +236,7 @@ export const DeliveryDriverView: React.FC<OtherRolesViewProps> = ({ orders }) =>
       const token = await MessagingService.requestNotificationPermission();
       if (token && user) {
         const idToken = await user.getIdToken();
-        const res = await fetch('/api/notifications/register-device', {
+        const res = await fetch(getApiUrl('/api/notifications/register-device'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -259,7 +260,7 @@ export const DeliveryDriverView: React.FC<OtherRolesViewProps> = ({ orders }) =>
     try {
       setDriverNotifs(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
       const idToken = await user?.getIdToken();
-      await fetch(`/api/notifications/${notifId}/read`, {
+      await fetch(getApiUrl(`/api/notifications/${notifId}/read`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -281,7 +282,7 @@ export const DeliveryDriverView: React.FC<OtherRolesViewProps> = ({ orders }) =>
       const payload: any = { status: nextStatus };
       if (failureReason) payload.failureReason = failureReason;
 
-      const res = await fetch(`/api/deliveries/${deliveryId}/status`, {
+      const res = await fetch(getApiUrl(`/api/deliveries/${deliveryId}/status`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -305,7 +306,7 @@ export const DeliveryDriverView: React.FC<OtherRolesViewProps> = ({ orders }) =>
       // Send telemetry update if location is available
       if (navigator.geolocation && ['picked_up', 'on_the_way', 'arrived'].includes(nextStatus)) {
         navigator.geolocation.getCurrentPosition((pos) => {
-          fetch(`/api/deliveries/${deliveryId}/tracking`, {
+          fetch(getApiUrl(`/api/deliveries/${deliveryId}/tracking`), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

@@ -28,10 +28,12 @@ import {
   APPayment
 } from '../../domain/entities/accounting';
 import { IAccountingRepository } from '../../domain/repositories/IAccountingRepository';
+import { getApiUrl } from '../../lib/apiConfig';
 
 async function authFetch(url: string, options: RequestInit = {}) {
   const token = await getAuthToken();
-  const res = await fetch(url, {
+  const targetUrl = getApiUrl(url);
+  const res = await fetch(targetUrl, {
     ...options,
     headers: {
       'Content-Type': 'application/json',

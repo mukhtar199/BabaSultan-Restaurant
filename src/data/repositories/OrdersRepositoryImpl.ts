@@ -1,5 +1,6 @@
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db, COLLECTIONS, updateOrderStatusFirestore, getAuthToken } from '../../lib/firebase';
+import { getApiUrl } from '../../lib/apiConfig';
 import { IOrdersRepository } from '../../domain/repositories/IOrdersRepository';
 import { CreateOrderPayload } from '../../domain/entities/order';
 import { Order } from '../../types';
@@ -17,7 +18,7 @@ export class OrdersRepositoryImpl implements IOrdersRepository {
 
   async createOrder(payload: CreateOrderPayload, branchId?: string): Promise<Order> {
     const token = await getAuthToken();
-    const res = await fetch('/api/pos/complete', {
+    const res = await fetch(getApiUrl('/api/pos/complete'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

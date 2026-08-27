@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db, COLLECTIONS, auth } from '../../lib/firebase';
+import { getApiUrl } from '../../lib/apiConfig';
 import { 
   Order, 
   Product, 
@@ -328,7 +329,7 @@ export const AIBusinessPlatformView: React.FC<AIBusinessPlatformViewProps> = ({
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/ai-chat', {
+      const response = await fetch(getApiUrl('/api/ai-chat'), {
         method: 'POST',
         headers,
         body: JSON.stringify({

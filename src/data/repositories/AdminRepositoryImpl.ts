@@ -1,5 +1,6 @@
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, setDoc } from 'firebase/firestore';
 import { db, COLLECTIONS, getAuthToken } from '../../lib/firebase';
+import { getApiUrl } from '../../lib/apiConfig';
 import { IAdminRepository } from '../../domain/repositories/IAdminRepository';
 import { Category, Customer, Branch, Revenue, AISetting, UserPermission } from '../../domain/entities/admin';
 import { handleFirestoreError, OperationType } from '../../infrastructure/firebase/errorHandler';
@@ -106,7 +107,7 @@ export class AdminRepositoryImpl implements IAdminRepository {
     const data = { ...revenue, createdAt: new Date().toISOString() };
     try {
       const token = await getAuthToken();
-      const res = await fetch('/api/accounting/revenues', {
+      const res = await fetch(getApiUrl('/api/accounting/revenues'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

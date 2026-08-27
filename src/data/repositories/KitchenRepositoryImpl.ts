@@ -12,6 +12,7 @@ import {
   where
 } from 'firebase/firestore';
 import { db, COLLECTIONS, deductProductIngredientsStockFirestore, updateKitchenStatusFirestore, updateKitchenTicketFirestore, recordInventoryMovementFirestore, getAuthToken } from '../../lib/firebase';
+import { getApiUrl } from '../../lib/apiConfig';
 import {
   KitchenTicket,
   KitchenStation,
@@ -279,7 +280,7 @@ export class KitchenRepositoryImpl implements KitchenRepository {
 
   async logKitchenWaste(wasteData: Omit<KitchenWasteLog, 'id' | 'createdAt'>): Promise<string> {
     const token = await getAuthToken();
-    const response = await fetch('/api/kitchen/waste', {
+    const response = await fetch(getApiUrl('/api/kitchen/waste'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
